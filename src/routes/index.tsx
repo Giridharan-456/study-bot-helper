@@ -50,7 +50,7 @@ function Index() {
         </div>
 
         <div className="grid gap-8 md:grid-cols-2">
-          <Card className="border-border/50 shadow-md transition-all hover:shadow-lg bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm flex flex-col">
+          <Card className="border-border/50 shadow-md hover:shadow-xl transition-shadow duration-150 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Send className="w-5 h-5 text-blue-500" />
@@ -69,35 +69,37 @@ function Index() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border/50">
-              <Button 
-                variant="outline" 
-                className="w-full sm:w-auto transition-all active:scale-95 hover:bg-muted"
+            <CardFooter className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-4 border-t border-border/50">
+              <button
+                type="button"
                 disabled={!link || isLoading}
                 onClick={handleCopy}
+                className="group relative inline-flex items-center justify-center gap-2 h-11 px-4 rounded-xl font-semibold text-sm border border-border/70 bg-white/70 dark:bg-slate-800/70 text-foreground backdrop-blur-sm shadow-sm hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.97] transition-[transform,box-shadow,background-color] duration-100 ease-out disabled:opacity-50 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
               >
                 {copied ? (
-                  <><Check className="w-4 h-4 mr-2 text-green-500" /> Copied</>
+                  <><Check className="w-4 h-4 text-emerald-500" /> Copied</>
                 ) : (
-                  <><Copy className="w-4 h-4 mr-2" /> Copy Link</>
+                  <><Copy className="w-4 h-4" /> Copy</>
                 )}
-              </Button>
-              <Button 
-                className="w-full sm:w-auto transition-all active:scale-95 bg-[#0088cc] hover:bg-[#0077b3] text-white"
-                disabled={!link || isLoading}
-                asChild
+              </button>
+              <a
+                href={link || "#"}
+                target="_blank"
+                rel="noreferrer"
+                aria-disabled={!link || isLoading}
+                onClick={(e) => { if (!link || isLoading) e.preventDefault(); }}
+                className="group relative inline-flex items-center justify-center gap-2 h-11 px-4 rounded-xl font-semibold text-sm text-white shadow-md shadow-sky-500/30 bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-sky-500/40 active:translate-y-0 active:scale-[0.97] transition-[transform,box-shadow] duration-100 ease-out aria-disabled:opacity-50 aria-disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 overflow-hidden"
               >
-                <a href={link || "#"} target="_blank" rel="noreferrer">
-                  <ExternalLink className="w-4 h-4 mr-2" /> Launch
-                </a>
-              </Button>
-              <Button 
-                variant="secondary"
-                className="w-full sm:w-auto transition-all active:scale-95 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100"
+                <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-500 ease-out bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+                <ExternalLink className="w-4 h-4 relative" /> <span className="relative">Launch</span>
+              </a>
+              <button
+                type="button"
                 onClick={handleShareTelegram}
+                className="group relative inline-flex items-center justify-center gap-2 h-11 px-4 rounded-xl font-semibold text-sm text-white shadow-md shadow-fuchsia-500/30 bg-gradient-to-br from-fuchsia-500 via-purple-500 to-indigo-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-fuchsia-500/40 active:translate-y-0 active:scale-[0.97] transition-[transform,box-shadow] duration-100 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
               >
-                <Share2 className="w-4 h-4 mr-2" /> Share
-              </Button>
+                <Share2 className="w-4 h-4" /> Share
+              </button>
             </CardFooter>
           </Card>
 
