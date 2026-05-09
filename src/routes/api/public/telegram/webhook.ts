@@ -851,7 +851,15 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
 
           // ---- Allowed users ----
           if (msg && typeof msg.text === "string") {
-            if (msg.text.startsWith("/")) {
+            // Deep-link battle join: /start bt_<code>
+            const parts = msg.text.trim().split(/\s+/);
+            if (
+              parts[0].toLowerCase().startsWith("/start") &&
+              parts[1] &&
+              parts[1].toLowerCase().startsWith("bt_")
+            ) {
+              await joinBattle(chatId, username, parts[1].slice(3));
+            } else if (msg.text.startsWith("/")) {
               await handleCommand(chatId, username, msg.text);
             } else {
               await tg("sendMessage", {
