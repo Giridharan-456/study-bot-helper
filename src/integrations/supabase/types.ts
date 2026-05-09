@@ -14,6 +14,98 @@ export type Database = {
   }
   public: {
     Tables: {
+      battles: {
+        Row: {
+          code: string
+          created_at: string
+          current_question_id: number | null
+          p1_answer: string | null
+          p1_chat: number
+          p1_message_id: number | null
+          p1_score: number
+          p1_username: string | null
+          p2_answer: string | null
+          p2_chat: number | null
+          p2_message_id: number | null
+          p2_score: number
+          p2_username: string | null
+          round: number
+          status: string
+          subject: string | null
+          topic: string | null
+          total_questions: number
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          current_question_id?: number | null
+          p1_answer?: string | null
+          p1_chat: number
+          p1_message_id?: number | null
+          p1_score?: number
+          p1_username?: string | null
+          p2_answer?: string | null
+          p2_chat?: number | null
+          p2_message_id?: number | null
+          p2_score?: number
+          p2_username?: string | null
+          round?: number
+          status?: string
+          subject?: string | null
+          topic?: string | null
+          total_questions?: number
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          current_question_id?: number | null
+          p1_answer?: string | null
+          p1_chat?: number
+          p1_message_id?: number | null
+          p1_score?: number
+          p1_username?: string | null
+          p2_answer?: string | null
+          p2_chat?: number | null
+          p2_message_id?: number | null
+          p2_score?: number
+          p2_username?: string | null
+          round?: number
+          status?: string
+          subject?: string | null
+          topic?: string | null
+          total_questions?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "battles_current_question_id_fkey"
+            columns: ["current_question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookmarks: {
+        Row: {
+          chat_id: number
+          created_at: string
+          question_id: number
+        }
+        Insert: {
+          chat_id: number
+          created_at?: string
+          question_id: number
+        }
+        Update: {
+          chat_id?: number
+          created_at?: string
+          question_id?: number
+        }
+        Relationships: []
+      }
       bot_users: {
         Row: {
           chat_id: number
@@ -132,6 +224,9 @@ export type Database = {
           chat_id: number
           current_question_id: number | null
           mode: string
+          session_correct: number | null
+          session_remaining: number | null
+          session_total: number | null
           subject: string | null
           topic: string | null
           updated_at: string
@@ -140,6 +235,9 @@ export type Database = {
           chat_id: number
           current_question_id?: number | null
           mode?: string
+          session_correct?: number | null
+          session_remaining?: number | null
+          session_total?: number | null
           subject?: string | null
           topic?: string | null
           updated_at?: string
@@ -148,6 +246,9 @@ export type Database = {
           chat_id?: number
           current_question_id?: number | null
           mode?: string
+          session_correct?: number | null
+          session_remaining?: number | null
+          session_total?: number | null
           subject?: string | null
           topic?: string | null
           updated_at?: string
@@ -161,6 +262,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      wrong_answers: {
+        Row: {
+          chat_id: number
+          last_wrong_at: string
+          question_id: number
+          wrong_count: number
+        }
+        Insert: {
+          chat_id: number
+          last_wrong_at?: string
+          question_id: number
+          wrong_count?: number
+        }
+        Update: {
+          chat_id?: number
+          last_wrong_at?: string
+          question_id?: number
+          wrong_count?: number
+        }
+        Relationships: []
       }
     }
     Views: {
