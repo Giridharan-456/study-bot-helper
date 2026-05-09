@@ -191,35 +191,12 @@ async function pickQuestion(subject: string | null, topic: string | null) {
   return data;
 }
 
-function quickMenu() {
-  return {
-    inline_keyboard: [
-      [
-        { text: "🎲 Next random", callback_data: "next:random" },
-        { text: "🗂 Topics", callback_data: "menu:topics" },
-      ],
-      [
-        { text: "📚 ICTSM", callback_data: "subj:ICTSM" },
-        { text: "💼 Employability", callback_data: "subj:Employability" },
-      ],
-      [
-        { text: "📈 Score", callback_data: "menu:score" },
-        { text: "🏆 Top", callback_data: "menu:leaderboard" },
-        { text: "⚙️ Mode", callback_data: "menu:mode" },
-      ],
-    ],
-  };
-}
-
 function persistentKeyboard() {
   return {
     keyboard: [
       [{ text: "🎲 /random" }, { text: "🗂 /topics" }],
-      [{ text: "📚 /ictsm" }, { text: "💼 /employability" }],
       [{ text: "🎯 /quiz" }, { text: "⚔️ /battle" }],
       [{ text: "📈 /score" }, { text: "🏆 /leaderboard" }],
-      [{ text: "⚙️ /mode" }, { text: "♻️ /reset" }],
-      [{ text: "❓ /help" }],
     ],
     resize_keyboard: true,
     is_persistent: true,
@@ -321,8 +298,7 @@ async function sendScore(chatId: number) {
   await tg("sendMessage", {
     chat_id: chatId,
     text: `📈 *Your score*\n\nCorrect: *${correct}* / ${total}\nAccuracy: *${pct}%*`,
-    parse_mode: "Markdown",
-    reply_markup: quickMenu(),
+    parse_mode: "Markdown"
   });
 }
 
@@ -338,8 +314,7 @@ async function sendLeaderboard(chatId: number) {
     await tg("sendMessage", {
       chat_id: chatId,
       text: "🏆 *Leaderboard*\n\nNo scores yet — answer at least 5 questions to qualify!",
-      parse_mode: "Markdown",
-      reply_markup: quickMenu(),
+      parse_mode: "Markdown"
     });
     return;
   }
@@ -353,8 +328,7 @@ async function sendLeaderboard(chatId: number) {
   await tg("sendMessage", {
     chat_id: chatId,
     text: `🏆 *Top scorers*\n\n${lines.join("\n")}`,
-    parse_mode: "Markdown",
-    reply_markup: quickMenu(),
+    parse_mode: "Markdown"
   });
 }
 
@@ -401,8 +375,7 @@ async function endQuizSession(chatId: number, total: number, correct: number) {
   await tg("sendMessage", {
     chat_id: chatId,
     text: `🏁 *Round complete!*\n\nScore: *${correct}/${total}* (${pct}%)`,
-    parse_mode: "Markdown",
-    reply_markup: quickMenu(),
+    parse_mode: "Markdown"
   });
 }
 
@@ -716,14 +689,12 @@ async function revealBattleRound(b: Battle) {
     await tg("sendMessage", {
       chat_id: b.p1_chat,
       text: finale,
-      parse_mode: "Markdown",
-      reply_markup: quickMenu(),
+      parse_mode: "Markdown"
     });
     await tg("sendMessage", {
       chat_id: b.p2_chat,
       text: finale,
-      parse_mode: "Markdown",
-      reply_markup: quickMenu(),
+      parse_mode: "Markdown"
     });
     return;
   }
@@ -776,8 +747,7 @@ async function handleCommand(chatId: number, username: string | null, text: stri
       });
       await tg("sendMessage", {
         chat_id: chatId,
-        text: "Quick actions:",
-        reply_markup: quickMenu(),
+        text: "Quick actions:"
       });
       return;
     case "/mode":
@@ -831,8 +801,7 @@ async function handleCommand(chatId: number, username: string | null, text: stri
     default:
       await tg("sendMessage", {
         chat_id: chatId,
-        text: "Unknown command. Send /help to see options.",
-        reply_markup: quickMenu(),
+        text: "Unknown command. Send /help to see options."
       });
   }
 }
@@ -937,8 +906,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               await tg("sendMessage", {
                 chat_id: chatId,
                 text: `✅ Mode set to *${newMode === "poll" ? "Quiz Polls" : "Inline Buttons"}*. Try /random.`,
-                parse_mode: "Markdown",
-                reply_markup: quickMenu(),
+                parse_mode: "Markdown"
               });
             } else if (data === "menu:topics") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
