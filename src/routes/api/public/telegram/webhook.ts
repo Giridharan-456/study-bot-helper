@@ -198,12 +198,12 @@ function persistentKeyboard() {
       [{ text: "🎲 /random" }, { text: "🗂 /topics" }],
       // Subjects
       [{ text: "📚 /ictsm" }, { text: "💼 /employability" }],
-      // Play modes
+      // Modes
       [{ text: "🎯 /quiz" }, { text: "⚔️ /battle" }],
+      // Practice
+      [{ text: "🔁 /review" }, { text: "🔖 /bookmarks" }],
       // Stats
       [{ text: "📈 /score" }, { text: "🏆 /leaderboard" }],
-      // Settings
-      [{ text: "⚙️ /mode" }, { text: "♻️ /reset" }],
       // Help
       [{ text: "❓ /help" }],
     ],
@@ -220,9 +220,10 @@ const BOT_COMMANDS = [
   { command: "quiz", description: "🎯 10/20/50-question round" },
   { command: "battle", description: "⚔️ 1v1 quiz with a friend" },
   { command: "join", description: "🤝 Join a friend's battle" },
+  { command: "review", description: "🔁 Re-do questions you got wrong" },
+  { command: "bookmarks", description: "🔖 Practice your saved questions" },
   { command: "score", description: "📈 Your lifetime score" },
   { command: "leaderboard", description: "🏆 Top scorers" },
-  { command: "mode", description: "⚙️ Switch quiz polls / buttons" },
   { command: "reset", description: "♻️ Reset your score" },
   { command: "help", description: "❓ Show this menu" },
 ];
