@@ -1038,18 +1038,25 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                   show_alert: false,
                 });
                 // Edit the question message in place: append result, remove buttons.
-                const origText = cb.message?.text as string | undefined;
-                const resultLine =
-                  (correct
-                    ? `\n\n✅ *Correct!* (${q.answer})`
-                    : `\n\n❌ *Wrong.* Answer: *${q.answer}* — ${correctText}`) +
-                  `\n_Lifetime: ${score.correct}/${score.total}_`;
-                if (cb.message?.message_id && origText) {
+                if (cb.message?.message_id) {
+                  const rebuilt = formatQuestionCard(
+                    q.subject,
+                    q.topic,
+                    q.question,
+                    [q.option_a, q.option_b, q.option_c, q.option_d],
+                  );
+                  const resultLine = formatResult(
+                    correct,
+                    q.answer,
+                    correctText,
+                    letter,
+                    { correct: score.correct, total: score.total },
+                  );
                   await tg("editMessageText", {
                     chat_id: chatId,
                     message_id: cb.message.message_id,
-                    text: origText + resultLine,
-                    parse_mode: "Markdown",
+                    text: rebuilt + resultLine,
+                    parse_mode: "HTML",
                   });
                 }
                 // Quiz session bookkeeping
