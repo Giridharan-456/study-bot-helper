@@ -19,18 +19,37 @@ async function tg(method: string, body: unknown) {
   if (!LOVABLE_API_KEY || !TELEGRAM_API_KEY) {
     throw new Error("Telegram connector keys missing");
   }
-  const res = await fetch(`${GATEWAY_URL}/${method}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "X-Connection-Api-Key": TELEGRAM_API_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) console.error(`tg ${method} failed`, res.status, data);
-  return data;
+  let lastErr: unknown;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const res = await fetch(`${GATEWAY_URL}/${method}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "X-Connection-Api-Key": TELEGRAM_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let data: unknown;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { ok: false, raw: text };
+      }
+      if (!res.ok) console.error(`tg ${method} failed`, res.status, data);
+      if (res.ok || res.status < 500 || attempt === 3) return data;
+    } catch (err) {
+      lastErr = err;
+      console.error(`tg ${method} threw`, err);
+      if (attempt === 3) return { ok: false, error: String(err) };
+    }
+    await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+  }
+
+  return { ok: false, error: String(lastErr) };
 }
 
 const LETTERS = ["A", "B", "C", "D"] as const;
