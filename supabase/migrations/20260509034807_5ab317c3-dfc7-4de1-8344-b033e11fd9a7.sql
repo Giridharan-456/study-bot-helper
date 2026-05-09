@@ -1,0 +1,1 @@
+ALTER TABLE public.user_state ADD COLUMN IF NOT EXISTS topic text;

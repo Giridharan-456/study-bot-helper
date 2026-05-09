@@ -133,6 +133,7 @@ export type Database = {
           current_question_id: number | null
           mode: string
           subject: string | null
+          topic: string | null
           updated_at: string
         }
         Insert: {
@@ -140,6 +141,7 @@ export type Database = {
           current_question_id?: number | null
           mode?: string
           subject?: string | null
+          topic?: string | null
           updated_at?: string
         }
         Update: {
@@ -147,6 +149,7 @@ export type Database = {
           current_question_id?: number | null
           mode?: string
           subject?: string | null
+          topic?: string | null
           updated_at?: string
         }
         Relationships: [
