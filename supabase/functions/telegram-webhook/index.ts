@@ -123,15 +123,15 @@ function quickMenu() {
   return {
     inline_keyboard: [
       [
-        { text: "?? Score", callback_data: "menu:score" },
-        { text: "?? Leaderboard", callback_data: "menu:leaderboard" },
+        { text: "Score", callback_data: "menu:score" },
+        { text: "Leaderboard", callback_data: "menu:leaderboard" },
       ],
       [
-        { text: "?? Progress", callback_data: "menu:progress" },
-        { text: "?? Study plan", callback_data: "menu:plan" },
+        { text: "Progress", callback_data: "menu:progress" },
+        { text: "Study plan", callback_data: "menu:plan" },
       ],
       [
-        { text: "?? Mode", callback_data: "menu:mode" },
+        { text: "Mode", callback_data: "menu:mode" },
       ],
     ],
   };
@@ -225,7 +225,7 @@ async function sendProgress(chatId: number) {
 
   await tg("sendMessage", {
     chat_id: chatId,
-    text: `?? *Progress snapshot*\n\nAccuracy: *${pct}%*\nAnswered: *${total}*\nCorrect: *${correct}*\nFocus: *${focus}*\nMode: *${modeLabel}*\n\n${nextTip}`,
+    text: `*Progress snapshot*\n\nAccuracy: *${pct}%*\nAnswered: *${total}*\nCorrect: *${correct}*\nFocus: *${focus}*\nMode: *${modeLabel}*\n\n${nextTip}`,
     parse_mode: "Markdown",
     reply_markup: quickMenu(),
   });
@@ -252,7 +252,7 @@ async function sendLeaderboard(chatId: number) {
 
   await tg("sendMessage", {
     chat_id: chatId,
-    text: `?? *Leaderboard*\n\n${text}`,
+    text: `*Leaderboard*\n\n${text}`,
     parse_mode: "Markdown",
     reply_markup: quickMenu(),
   });
@@ -262,7 +262,7 @@ async function sendStudyPlan(chatId: number) {
   await tg("sendMessage", {
     chat_id: chatId,
     text:
-      "?? *Today's 15 minute plan*\n\n" +
+      "*Today\'s 15 minute plan*\n\n" +
       "1. Warm up with /random for 5 questions.\n" +
       "2. Open /topics and drill one weak topic.\n" +
       "3. Check /progress, then repeat missed areas.\n\n" +
@@ -291,9 +291,9 @@ function welcomeText() {
     "/topics — browse 20 topics\n" +
     "/mode — switch between quiz polls or buttons\n" +
     "/score — your score\n" +
-    "/progress ? accuracy, focus and next step\n" +
-    "/leaderboard ? top students\n" +
-    "/plan ? 15 minute study routine\n" +
+    "/progress - accuracy, focus and next step\n" +
+    "/leaderboard - top students\n" +
+    "/plan - 15 minute study routine\n" +
     "/reset — reset your score\n"
   );
 }
@@ -325,7 +325,8 @@ async function handleCommand(chatId: number, username: string | null, text: stri
       return;
     case "/score":
       await sendScore(chatId);
-      return;    case "/progress":
+      return;
+    case "/progress":
       await sendProgress(chatId);
       return;
     case "/leaderboard":
@@ -369,7 +370,7 @@ Deno.serve(async (request) => {
         if (parts[0].toLowerCase().startsWith("/start") && parts[1]) {
           const ok = await tryRedeemInvite(chatId, username, parts[1]);
           if (ok) {
-            await tg("sendMessage", { chat_id: chatId, text: "🎉 Access granted!\n\n" + welcomeText(), parse_mode: "Markdown"
+            await tg("sendMessage", { chat_id: chatId, text: "🎉 Access granted!\n\n" + welcomeText(), parse_mode: "Markdown",
             reply_markup: quickMenu(), });
             return json({ ok: true });
           }
