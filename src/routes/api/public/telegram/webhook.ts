@@ -35,6 +35,48 @@ async function tg(method: string, body: unknown) {
 
 const LETTERS = ["A", "B", "C", "D"] as const;
 
+// ---- Question ID cache (per subject|topic) ----
+type IdCache = { ids: number[]; expires: number };
+const idCache = new Map<string, IdCache>();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function getQuestionIds(subject: string | null, topic: string | null): Promise<number[]> {
+  const key = `${subject ?? "*"}|${topic ?? "*"}`;
+  const now = Date.now();
+  const hit = idCache.get(key);
+  if (hit && hit.expires > now) return hit.ids;
+  let q = supabaseAdmin.from("questions").select("id");
+  if (subject) q = q.eq("subject", subject);
+  if (topic) q = q.eq("topic", topic);
+  const { data } = await q;
+  const ids = ((data ?? []) as { id: number }[]).map((r) => r.id);
+  idCache.set(key, { ids, expires: now + CACHE_TTL_MS });
+  return ids;
+}
+
+// ---- Topic list cache ----
+type TopicRow = { subject: string; topic: string };
+let topicCache: { rows: TopicRow[]; expires: number } | null = null;
+async function getTopics(): Promise<TopicRow[]> {
+  const now = Date.now();
+  if (topicCache && topicCache.expires > now) return topicCache.rows;
+  const { data } = await supabaseAdmin.from("questions").select("subject,topic");
+  const seen = new Set<string>();
+  const rows: TopicRow[] = [];
+  for (const r of (data ?? []) as TopicRow[]) {
+    const k = `${r.subject}|${r.topic}`;
+    if (!seen.has(k)) {
+      seen.add(k);
+      rows.push(r);
+    }
+  }
+  rows.sort((a, b) =>
+    a.subject === b.subject ? a.topic.localeCompare(b.topic) : a.subject.localeCompare(b.subject),
+  );
+  topicCache = { rows, expires: now + CACHE_TTL_MS };
+  return rows;
+}
+
 async function isAllowed(chatId: number) {
   const { data } = await supabaseAdmin
     .from("bot_users")
@@ -91,13 +133,9 @@ async function bumpScore(chatId: number, username: string | null, correct: boole
 }
 
 async function pickQuestion(subject: string | null, topic: string | null) {
-  let query = supabaseAdmin.from("questions").select("id");
-  if (subject) query = query.eq("subject", subject);
-  if (topic) query = query.eq("topic", topic);
-  const idsRes = await query;
-  const ids = (idsRes.data ?? []) as { id: number }[];
+  const ids = await getQuestionIds(subject, topic);
   if (!ids.length) return null;
-  const pick = ids[Math.floor(Math.random() * ids.length)].id;
+  const pick = ids[Math.floor(Math.random() * ids.length)];
   const { data } = await supabaseAdmin.from("questions").select("*").eq("id", pick).single();
   return data;
 }
@@ -115,9 +153,22 @@ function quickMenu() {
       ],
       [
         { text: "📈 Score", callback_data: "menu:score" },
+        { text: "🏆 Top", callback_data: "menu:leaderboard" },
         { text: "⚙️ Mode", callback_data: "menu:mode" },
       ],
     ],
+  };
+}
+
+function persistentKeyboard() {
+  return {
+    keyboard: [
+      [{ text: "/random" }, { text: "/topics" }],
+      [{ text: "/quiz" }, { text: "/score" }],
+      [{ text: "/leaderboard" }, { text: "/mode" }],
+    ],
+    resize_keyboard: true,
+    is_persistent: true,
   };
 }
 
@@ -168,21 +219,8 @@ async function sendQuestion(
 }
 
 async function sendTopicsMenu(chatId: number, subject?: string) {
-  let query = supabaseAdmin.from("questions").select("subject,topic");
-  if (subject) query = query.eq("subject", subject);
-  const { data } = await query;
-  const seen = new Set<string>();
-  const topics: { subject: string; topic: string }[] = [];
-  for (const r of (data ?? []) as { subject: string; topic: string }[]) {
-    const key = `${r.subject}|${r.topic}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      topics.push(r);
-    }
-  }
-  topics.sort((a, b) =>
-    a.subject === b.subject ? a.topic.localeCompare(b.topic) : a.subject.localeCompare(b.subject),
-  );
+  const all = await getTopics();
+  const topics = subject ? all.filter((t) => t.subject === subject) : all;
   const rows = topics.map((t) => [
     { text: `${t.subject === "ICTSM" ? "📚" : "💼"} ${t.topic}`, callback_data: `topic:${t.subject}:${t.topic}` },
   ]);
@@ -206,6 +244,86 @@ async function sendScore(chatId: number) {
   await tg("sendMessage", {
     chat_id: chatId,
     text: `📈 *Your score*\n\nCorrect: *${correct}* / ${total}\nAccuracy: *${pct}%*`,
+    parse_mode: "Markdown",
+    reply_markup: quickMenu(),
+  });
+}
+
+async function sendLeaderboard(chatId: number) {
+  const { data } = await supabaseAdmin
+    .from("user_scores")
+    .select("username,total,correct")
+    .gte("total", 5)
+    .order("correct", { ascending: false })
+    .limit(10);
+  const rows = (data ?? []) as { username: string | null; total: number; correct: number }[];
+  if (!rows.length) {
+    await tg("sendMessage", {
+      chat_id: chatId,
+      text: "🏆 *Leaderboard*\n\nNo scores yet — answer at least 5 questions to qualify!",
+      parse_mode: "Markdown",
+      reply_markup: quickMenu(),
+    });
+    return;
+  }
+  const medals = ["🥇", "🥈", "🥉"];
+  const lines = rows.map((r, i) => {
+    const pct = r.total ? Math.round((r.correct / r.total) * 100) : 0;
+    const tag = medals[i] ?? `${i + 1}.`;
+    const name = (r.username ?? "anon").slice(0, 20);
+    return `${tag} *${name}* — ${r.correct}/${r.total} (${pct}%)`;
+  });
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: `🏆 *Top scorers*\n\n${lines.join("\n")}`,
+    parse_mode: "Markdown",
+    reply_markup: quickMenu(),
+  });
+}
+
+async function sendQuizMenu(chatId: number) {
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: "🎯 *Start a quiz round* — how many questions?",
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "10", callback_data: "quiz:10" },
+          { text: "20", callback_data: "quiz:20" },
+          { text: "50", callback_data: "quiz:50" },
+        ],
+      ],
+    },
+  });
+}
+
+async function startQuizSession(chatId: number, n: number, mode: string) {
+  await setState(chatId, {
+    subject: null,
+    topic: null,
+    session_total: n,
+    session_correct: 0,
+    session_remaining: n,
+  });
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: `🎯 Starting a *${n}-question* round. Good luck!`,
+    parse_mode: "Markdown",
+  });
+  await sendQuestion(chatId, null, null, mode);
+}
+
+async function endQuizSession(chatId: number, total: number, correct: number) {
+  const pct = total ? Math.round((correct / total) * 100) : 0;
+  await setState(chatId, {
+    session_total: null,
+    session_correct: null,
+    session_remaining: null,
+  });
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: `🏁 *Round complete!*\n\nScore: *${correct}/${total}* (${pct}%)`,
     parse_mode: "Markdown",
     reply_markup: quickMenu(),
   });
@@ -235,6 +353,8 @@ function welcomeText() {
     "/employability — random Employability question\n" +
     "/random — random from any subject\n" +
     "/topics — browse 20 topics\n" +
+    "/quiz — start a 10/20/50-question round\n" +
+    "/leaderboard — top scorers\n" +
     "/mode — switch between quiz polls or buttons\n" +
     "/score — your score\n" +
     "/reset — reset your score\n"
@@ -253,6 +373,11 @@ async function handleCommand(chatId: number, username: string | null, text: stri
         chat_id: chatId,
         text: welcomeText(),
         parse_mode: "Markdown",
+        reply_markup: persistentKeyboard(),
+      });
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text: "Quick actions:",
         reply_markup: quickMenu(),
       });
       return;
@@ -261,6 +386,13 @@ async function handleCommand(chatId: number, username: string | null, text: stri
       return;
     case "/topics":
       await sendTopicsMenu(chatId);
+      return;
+    case "/quiz":
+      await sendQuizMenu(chatId);
+      return;
+    case "/leaderboard":
+    case "/top":
+      await sendLeaderboard(chatId);
       return;
     case "/ictsm":
       await sendQuestion(chatId, "ICTSM", null, mode);
@@ -336,6 +468,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                     text:
                       "🎉 Access granted!\n\n" + welcomeText(),
                     parse_mode: "Markdown",
+                    reply_markup: persistentKeyboard(),
                   });
                   return Response.json({ ok: true });
                 }
@@ -389,9 +522,17 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             } else if (data === "menu:score") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               await sendScore(chatId);
+            } else if (data === "menu:leaderboard") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              await sendLeaderboard(chatId);
             } else if (data === "menu:mode") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               await sendModeMenu(chatId);
+            } else if (data.startsWith("quiz:")) {
+              const n = Number(data.split(":")[1]);
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              const st = await getState(chatId);
+              await startQuizSession(chatId, n, st?.mode ?? "button");
             } else if (data === "next:random") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
@@ -426,17 +567,53 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                   text: correct ? "✅ Correct!" : "❌ Wrong",
                   show_alert: false,
                 });
-                await tg("sendMessage", {
-                  chat_id: chatId,
-                  text:
-                    (correct ? "✅ *Correct!*" : `❌ *Wrong.* Answer: *${q.answer}* — ${correctText}`) +
-                    `\n\nScore: ${score.correct}/${score.total}`,
-                  parse_mode: "Markdown",
-                  reply_markup: quickMenu(),
-                });
-                // Auto-send the next question in the same subject/topic context.
+                // Edit the question message in place: append result, remove buttons.
+                const origText = cb.message?.text as string | undefined;
+                const resultLine =
+                  (correct
+                    ? `\n\n✅ *Correct!* (${q.answer})`
+                    : `\n\n❌ *Wrong.* Answer: *${q.answer}* — ${correctText}`) +
+                  `\n_Lifetime: ${score.correct}/${score.total}_`;
+                if (cb.message?.message_id && origText) {
+                  await tg("editMessageText", {
+                    chat_id: chatId,
+                    message_id: cb.message.message_id,
+                    text: origText + resultLine,
+                    parse_mode: "Markdown",
+                  });
+                }
+                // Quiz session bookkeeping
                 const st = await getState(chatId);
-                await sendQuestion(chatId, st?.subject ?? null, st?.topic ?? null, st?.mode ?? "button");
+                const inSession =
+                  st?.session_remaining != null && st.session_remaining > 0;
+                if (inSession) {
+                  const remaining = (st!.session_remaining as number) - 1;
+                  const sessCorrect =
+                    (st!.session_correct as number) + (correct ? 1 : 0);
+                  await setState(chatId, {
+                    session_remaining: remaining,
+                    session_correct: sessCorrect,
+                  });
+                  if (remaining <= 0) {
+                    await endQuizSession(
+                      chatId,
+                      st!.session_total as number,
+                      sessCorrect,
+                    );
+                    return;
+                  }
+                  await tg("sendMessage", {
+                    chat_id: chatId,
+                    text: `📊 Round: ${sessCorrect} correct • ${remaining} left`,
+                  });
+                }
+                // Auto-send the next question in the same subject/topic context.
+                await sendQuestion(
+                  chatId,
+                  st?.subject ?? null,
+                  st?.topic ?? null,
+                  st?.mode ?? "button",
+                );
               } else {
                 await tg("answerCallbackQuery", { callback_query_id: cb.id });
               }

@@ -132,6 +132,9 @@ export type Database = {
           chat_id: number
           current_question_id: number | null
           mode: string
+          session_correct: number | null
+          session_remaining: number | null
+          session_total: number | null
           subject: string | null
           topic: string | null
           updated_at: string
@@ -140,6 +143,9 @@ export type Database = {
           chat_id: number
           current_question_id?: number | null
           mode?: string
+          session_correct?: number | null
+          session_remaining?: number | null
+          session_total?: number | null
           subject?: string | null
           topic?: string | null
           updated_at?: string
@@ -148,6 +154,9 @@ export type Database = {
           chat_id?: number
           current_question_id?: number | null
           mode?: string
+          session_correct?: number | null
+          session_remaining?: number | null
+          session_total?: number | null
           subject?: string | null
           topic?: string | null
           updated_at?: string
