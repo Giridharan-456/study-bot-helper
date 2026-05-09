@@ -215,11 +215,8 @@ function persistentKeyboard() {
   return {
     keyboard: [
       [{ text: "🎲 /random" }, { text: "🗂 /topics" }],
-      [{ text: "📚 /ictsm" }, { text: "💼 /employability" }],
       [{ text: "🎯 /quiz" }, { text: "⚔️ /battle" }],
       [{ text: "📈 /score" }, { text: "🏆 /leaderboard" }],
-      [{ text: "⚙️ /mode" }, { text: "♻️ /reset" }],
-      [{ text: "❓ /help" }],
     ],
     resize_keyboard: true,
     is_persistent: true,
