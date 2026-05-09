@@ -35,6 +35,57 @@ async function tg(method: string, body: unknown) {
 
 const LETTERS = ["A", "B", "C", "D"] as const;
 
+// ---- Visual formatting helpers (HTML parse_mode) ----
+function esc(s: string): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function subjectIcon(subject: string): string {
+  return subject === "ICTSM" ? "📚" : subject === "Employability" ? "💼" : "🧠";
+}
+
+function formatQuestionCard(
+  subject: string,
+  topic: string,
+  question: string,
+  options: string[],
+  header?: string,
+): string {
+  const head = header ? `<b>${esc(header)}</b>\n` : "";
+  const tag = `${subjectIcon(subject)} <b>${esc(subject)}</b> · <i>${esc(topic)}</i>`;
+  const divider = `━━━━━━━━━━━━━━━`;
+  const opts = LETTERS.map(
+    (L, i) => `   <b>${L}</b>  ·  ${esc(options[i] ?? "")}`,
+  ).join("\n");
+  return (
+    `${head}${tag}\n${divider}\n\n` +
+    `<b>❓ ${esc(question)}</b>\n\n` +
+    `${opts}\n\n` +
+    `<i>Tap a letter below to answer.</i>`
+  );
+}
+
+function formatResult(
+  correct: boolean,
+  answer: string,
+  correctText: string,
+  picked: string,
+  lifetime: { correct: number; total: number },
+): string {
+  const divider = `━━━━━━━━━━━━━━━`;
+  const head = correct
+    ? `✅ <b>Correct!</b>`
+    : `❌ <b>Wrong</b> — you picked <b>${esc(picked)}</b>`;
+  return (
+    `\n\n${divider}\n${head}\n` +
+    `🎯 Answer: <b>${esc(answer)}</b> · ${esc(correctText)}\n` +
+    `📈 Lifetime: <b>${lifetime.correct}/${lifetime.total}</b>`
+  );
+}
+
 // ---- Question ID cache (per subject|topic) ----
 type IdCache = { ids: number[]; expires: number };
 const idCache = new Map<string, IdCache>();
