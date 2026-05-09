@@ -191,6 +191,27 @@ async function pickQuestion(subject: string | null, topic: string | null) {
   return data;
 }
 
+const BOT_COMMANDS = [
+function persistentKeyboard() {
+  return {
+    keyboard: [
+      // Browse
+      [{ text: "🎲 /random" }, { text: "🗂 /topics" }],
+      // Subjects
+      [{ text: "📚 /ictsm" }, { text: "💼 /employability" }],
+      // Play modes
+      [{ text: "🎯 /quiz" }, { text: "⚔️ /battle" }],
+      // Stats
+      [{ text: "📈 /score" }, { text: "🏆 /leaderboard" }],
+      // Settings
+      [{ text: "⚙️ /mode" }, { text: "♻️ /reset" }],
+      // Help
+      [{ text: "❓ /help" }],
+    ],
+    resize_keyboard: true,
+    is_persistent: true,
+  };
+}
 
 const BOT_COMMANDS = [
   { command: "random", description: "🎲 Random question (any subject)" },
