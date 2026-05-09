@@ -895,7 +895,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               parts[1].toLowerCase().startsWith("bt_")
             ) {
               await joinBattle(chatId, username, parts[1].slice(3));
-            } else if (msg.text.startsWith("/")) {
+            } else if (/\/[A-Za-z]+/.test(msg.text)) {
               await handleCommand(chatId, username, msg.text);
             } else {
               await tg("sendMessage", {
