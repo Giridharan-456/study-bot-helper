@@ -165,7 +165,8 @@ function persistentKeyboard() {
     keyboard: [
       [{ text: "/random" }, { text: "/topics" }],
       [{ text: "/quiz" }, { text: "/score" }],
-      [{ text: "/leaderboard" }, { text: "/mode" }],
+      [{ text: "/battle" }, { text: "/leaderboard" }],
+      [{ text: "/mode" }, { text: "/help" }],
     ],
     resize_keyboard: true,
     is_persistent: true,
