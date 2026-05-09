@@ -733,7 +733,9 @@ function welcomeText() {
 }
 
 async function handleCommand(chatId: number, username: string | null, text: string) {
-  const cmd = text.split(/\s+/)[0].toLowerCase().split("@")[0];
+  // Accept buttons like "🎲 /random" — find the first slash-command token.
+  const match = text.match(/\/[A-Za-z]+/);
+  const cmd = (match ? match[0] : text.split(/\s+/)[0]).toLowerCase().split("@")[0];
   const state = await getState(chatId);
   const mode = state?.mode ?? "poll";
 
@@ -765,7 +767,9 @@ async function handleCommand(chatId: number, username: string | null, text: stri
       await sendBattleTopicMenu(chatId);
       return;
     case "/join": {
-      const code = text.split(/\s+/)[1];
+      // /join may be sent as "🤝 /join CODE" — pull last whitespace token if it's not the cmd
+      const tokens = text.split(/\s+/).filter((t) => !t.startsWith("/") && !/^[^\w/]+$/.test(t));
+      const code = tokens[tokens.length - 1];
       if (!code) {
         await tg("sendMessage", {
           chat_id: chatId,
