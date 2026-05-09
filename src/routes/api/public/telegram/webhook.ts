@@ -35,6 +35,32 @@ async function tg(method: string, body: unknown) {
 
 const LETTERS = ["A", "B", "C", "D"] as const;
 
+async function isAllowed(chatId: number) {
+  const { data } = await supabaseAdmin
+    .from("bot_users")
+    .select("chat_id")
+    .eq("chat_id", chatId)
+    .maybeSingle();
+  return !!data;
+}
+
+async function tryRedeemInvite(chatId: number, username: string | null, code: string) {
+  const { data: invite } = await supabaseAdmin
+    .from("invites")
+    .select("code,uses")
+    .eq("code", code)
+    .maybeSingle();
+  if (!invite) return false;
+  await supabaseAdmin
+    .from("bot_users")
+    .upsert({ chat_id: chatId, username, invite_code: code });
+  await supabaseAdmin
+    .from("invites")
+    .update({ uses: (invite.uses ?? 0) + 1 })
+    .eq("code", code);
+  return true;
+}
+
 async function getState(chatId: number) {
   const { data } = await supabaseAdmin
     .from("user_state")
@@ -220,11 +246,59 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
         const update = await request.json();
 
         try {
-          // Plain message / command
           const msg = update.message ?? update.edited_message;
-          if (msg?.chat?.id && typeof msg.text === "string") {
-            const chatId = msg.chat.id as number;
-            const username = msg.from?.username ?? msg.from?.first_name ?? null;
+          const cb = update.callback_query;
+
+          // Resolve chat + username for gating
+          const chatId: number | undefined =
+            msg?.chat?.id ?? cb?.message?.chat?.id;
+          const username: string | null =
+            msg?.from?.username ??
+            msg?.from?.first_name ??
+            cb?.from?.username ??
+            cb?.from?.first_name ??
+            null;
+
+          if (!chatId) return Response.json({ ok: true });
+
+          // ---- Access gate ----
+          const allowed = await isAllowed(chatId);
+          if (!allowed) {
+            // Only path in: /start <code>
+            if (msg && typeof msg.text === "string") {
+              const parts = msg.text.trim().split(/\s+/);
+              if (parts[0].toLowerCase().startsWith("/start") && parts[1]) {
+                const ok = await tryRedeemInvite(chatId, username, parts[1]);
+                if (ok) {
+                  await tg("sendMessage", {
+                    chat_id: chatId,
+                    text:
+                      "🎉 Access granted!\n\n" + welcomeText(),
+                    parse_mode: "Markdown",
+                  });
+                  return Response.json({ ok: true });
+                }
+              }
+            }
+            if (cb?.id) {
+              await tg("answerCallbackQuery", {
+                callback_query_id: cb.id,
+                text: "Access required",
+                show_alert: true,
+              });
+            }
+            await tg("sendMessage", {
+              chat_id: chatId,
+              text:
+                "🔒 *This bot is private.*\n\n" +
+                "Open the invite link your friend shared to unlock it.",
+              parse_mode: "Markdown",
+            });
+            return Response.json({ ok: true });
+          }
+
+          // ---- Allowed users ----
+          if (msg && typeof msg.text === "string") {
             if (msg.text.startsWith("/")) {
               await handleCommand(chatId, username, msg.text);
             } else {
@@ -235,11 +309,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             }
           }
 
-          // Inline button clicks
-          const cb = update.callback_query;
           if (cb?.data && cb.message?.chat?.id) {
-            const chatId = cb.message.chat.id as number;
-            const username = cb.from?.username ?? cb.from?.first_name ?? null;
             const data = cb.data as string;
 
             if (data.startsWith("mode:")) {
