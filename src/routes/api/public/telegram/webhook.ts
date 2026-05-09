@@ -191,7 +191,6 @@ async function pickQuestion(subject: string | null, topic: string | null) {
   return data;
 }
 
-const BOT_COMMANDS = [
 function persistentKeyboard() {
   return {
     keyboard: [
