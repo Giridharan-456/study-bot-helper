@@ -191,26 +191,6 @@ async function pickQuestion(subject: string | null, topic: string | null) {
   return data;
 }
 
-function quickMenu() {
-  return {
-    inline_keyboard: [
-      [
-        { text: "🎲 Next random", callback_data: "next:random" },
-        { text: "🗂 Topics", callback_data: "menu:topics" },
-      ],
-      [
-        { text: "📚 ICTSM", callback_data: "subj:ICTSM" },
-        { text: "💼 Employability", callback_data: "subj:Employability" },
-      ],
-      [
-        { text: "📈 Score", callback_data: "menu:score" },
-        { text: "🏆 Top", callback_data: "menu:leaderboard" },
-        { text: "⚙️ Mode", callback_data: "menu:mode" },
-      ],
-    ],
-  };
-}
-
 function persistentKeyboard() {
   return {
     keyboard: [
