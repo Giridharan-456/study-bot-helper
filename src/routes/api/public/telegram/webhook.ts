@@ -165,7 +165,8 @@ function persistentKeyboard() {
     keyboard: [
       [{ text: "/random" }, { text: "/topics" }],
       [{ text: "/quiz" }, { text: "/score" }],
-      [{ text: "/leaderboard" }, { text: "/mode" }],
+      [{ text: "/battle" }, { text: "/leaderboard" }],
+      [{ text: "/mode" }, { text: "/help" }],
     ],
     resize_keyboard: true,
     is_persistent: true,
@@ -344,6 +345,345 @@ async function sendModeMenu(chatId: number) {
   });
 }
 
+// ============================================================
+// Battle mode (1v1)
+// ============================================================
+
+type Battle = {
+  code: string;
+  status: string;
+  subject: string | null;
+  topic: string | null;
+  total_questions: number;
+  round: number;
+  p1_chat: number;
+  p1_username: string | null;
+  p2_chat: number | null;
+  p2_username: string | null;
+  p1_score: number;
+  p2_score: number;
+  current_question_id: number | null;
+  p1_answer: string | null;
+  p2_answer: string | null;
+  p1_message_id: number | null;
+  p2_message_id: number | null;
+};
+
+function genBattleCode() {
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let s = "";
+  for (let i = 0; i < 5; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return s;
+}
+
+async function findBattle(code: string): Promise<Battle | null> {
+  const { data } = await supabaseAdmin
+    .from("battles")
+    .select("*")
+    .eq("code", code.toUpperCase())
+    .maybeSingle();
+  return (data as Battle | null) ?? null;
+}
+
+async function getActiveBattle(chatId: number): Promise<Battle | null> {
+  const { data } = await supabaseAdmin
+    .from("battles")
+    .select("*")
+    .neq("status", "done")
+    .or(`p1_chat.eq.${chatId},p2_chat.eq.${chatId}`)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as Battle | null) ?? null;
+}
+
+async function updateBattle(code: string, patch: Record<string, unknown>) {
+  await supabaseAdmin
+    .from("battles")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("code", code);
+}
+
+async function sendBattleTopicMenu(chatId: number) {
+  const all = await getTopics();
+  const rows: { text: string; callback_data: string }[][] = [
+    [{ text: "🎲 Any subject", callback_data: "bt-topic:*:*" }],
+    [{ text: "📚 Any ICTSM", callback_data: "bt-topic:ICTSM:*" }],
+    [{ text: "💼 Any Employability", callback_data: "bt-topic:Employability:*" }],
+  ];
+  for (const t of all) {
+    rows.push([
+      {
+        text: `${t.subject === "ICTSM" ? "📚" : "💼"} ${t.topic}`,
+        callback_data: `bt-topic:${t.subject}:${t.topic}`,
+      },
+    ]);
+  }
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: "⚔️ *Battle mode* — pick a topic for the 1v1:",
+    parse_mode: "Markdown",
+    reply_markup: { inline_keyboard: rows },
+  });
+}
+
+async function createBattle(
+  chatId: number,
+  username: string | null,
+  subject: string | null,
+  topic: string | null,
+) {
+  // close any pending battle this user hosts
+  await supabaseAdmin
+    .from("battles")
+    .update({ status: "done", updated_at: new Date().toISOString() })
+    .eq("p1_chat", chatId)
+    .eq("status", "waiting");
+
+  let code = "";
+  for (let i = 0; i < 5; i++) {
+    code = genBattleCode();
+    const exists = await findBattle(code);
+    if (!exists) break;
+  }
+
+  await supabaseAdmin.from("battles").insert({
+    code,
+    status: "waiting",
+    subject,
+    topic,
+    p1_chat: chatId,
+    p1_username: username,
+    total_questions: 10,
+  });
+
+  const label = topic ?? (subject ? `Any ${subject}` : "Any subject");
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text:
+      `⚔️ *Battle created!*\n\n` +
+      `Topic: *${label}*\nRounds: *10*\n\n` +
+      `Share this code with your opponent:\n\`${code}\`\n\n` +
+      `They join by tapping the link below or sending \`/join ${code}\`.`,
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: "🔗 Share invite",
+            url: `https://t.me/share/url?url=${encodeURIComponent(
+              `https://t.me/Studyictsm_bot?start=bt_${code}`,
+            )}&text=${encodeURIComponent(`⚔️ Quiz battle (${label}) — join me on Study Bot!`)}`,
+          },
+        ],
+        [{ text: "✖️ Cancel", callback_data: `bt-cancel:${code}` }],
+      ],
+    },
+  });
+}
+
+async function joinBattle(chatId: number, username: string | null, rawCode: string) {
+  const code = rawCode.trim().toUpperCase();
+  const b = await findBattle(code);
+  if (!b) {
+    await tg("sendMessage", { chat_id: chatId, text: "❌ Battle code not found." });
+    return;
+  }
+  if (b.status !== "waiting") {
+    await tg("sendMessage", { chat_id: chatId, text: "⚠️ That battle is no longer open." });
+    return;
+  }
+  if (b.p1_chat === chatId) {
+    await tg("sendMessage", { chat_id: chatId, text: "🙃 You can't join your own battle." });
+    return;
+  }
+  await updateBattle(code, {
+    p2_chat: chatId,
+    p2_username: username,
+    status: "active",
+    round: 0,
+    p1_score: 0,
+    p2_score: 0,
+  });
+  const label = b.topic ?? (b.subject ? `Any ${b.subject}` : "Any subject");
+  const intro = `⚔️ *Battle starting!*\nTopic: *${label}*\nRounds: *${b.total_questions}*\n\nP1: ${b.p1_username ?? "Player 1"}\nP2: ${username ?? "Player 2"}`;
+  await tg("sendMessage", { chat_id: b.p1_chat, text: intro, parse_mode: "Markdown" });
+  await tg("sendMessage", { chat_id: chatId, text: intro, parse_mode: "Markdown" });
+  const fresh = await findBattle(code);
+  if (fresh) await sendBattleRound(fresh);
+}
+
+async function sendBattleRound(b: Battle) {
+  const q = await pickQuestion(b.subject, b.topic);
+  if (!q || !b.p2_chat) return;
+  const opts = [q.option_a, q.option_b, q.option_c, q.option_d];
+  const text =
+    `⚔️ *Round ${b.round + 1}/${b.total_questions}* — ${b.p1_score} vs ${b.p2_score}\n` +
+    `📚 *${q.subject}* — _${q.topic}_\n\n` +
+    `${q.question}\n\n` +
+    LETTERS.map((L, i) => `*${L}.* ${opts[i]}`).join("\n");
+  const reply_markup = {
+    inline_keyboard: [
+      LETTERS.map((L) => ({ text: L, callback_data: `bt-ans:${b.code}:${b.round}:${L}` })),
+    ],
+  };
+  const m1 = await tg("sendMessage", {
+    chat_id: b.p1_chat,
+    text,
+    parse_mode: "Markdown",
+    reply_markup,
+  });
+  const m2 = await tg("sendMessage", {
+    chat_id: b.p2_chat,
+    text,
+    parse_mode: "Markdown",
+    reply_markup,
+  });
+  await updateBattle(b.code, {
+    current_question_id: q.id,
+    p1_answer: null,
+    p2_answer: null,
+    p1_message_id: m1?.result?.message_id ?? null,
+    p2_message_id: m2?.result?.message_id ?? null,
+  });
+}
+
+async function handleBattleAnswer(
+  chatId: number,
+  cbId: string,
+  code: string,
+  roundStr: string,
+  letter: string,
+) {
+  const b = await findBattle(code);
+  if (!b || b.status !== "active") {
+    await tg("answerCallbackQuery", { callback_query_id: cbId, text: "Battle ended" });
+    return;
+  }
+  const round = Number(roundStr);
+  if (round !== b.round) {
+    await tg("answerCallbackQuery", { callback_query_id: cbId, text: "Round already over" });
+    return;
+  }
+  const isP1 = chatId === b.p1_chat;
+  const isP2 = chatId === b.p2_chat;
+  if (!isP1 && !isP2) {
+    await tg("answerCallbackQuery", { callback_query_id: cbId, text: "Not in this battle" });
+    return;
+  }
+  const already = isP1 ? b.p1_answer : b.p2_answer;
+  if (already) {
+    await tg("answerCallbackQuery", { callback_query_id: cbId, text: "Already answered" });
+    return;
+  }
+  await tg("answerCallbackQuery", { callback_query_id: cbId, text: `Locked in: ${letter}` });
+  const patch: Record<string, unknown> = isP1
+    ? { p1_answer: letter }
+    : { p2_answer: letter };
+  await updateBattle(code, patch);
+
+  // Edit player's own message — keep buttons removed, show their pick + "waiting"
+  const myMsg = isP1 ? b.p1_message_id : b.p2_message_id;
+  if (myMsg) {
+    await tg("editMessageReplyMarkup", {
+      chat_id: chatId,
+      message_id: myMsg,
+      reply_markup: { inline_keyboard: [] },
+    });
+    await tg("sendMessage", {
+      chat_id: chatId,
+      text: `🔒 You picked *${letter}*. Waiting for opponent…`,
+      parse_mode: "Markdown",
+    });
+  }
+
+  // Notify opponent that you answered (without revealing the letter)
+  const oppChat = isP1 ? b.p2_chat : b.p1_chat;
+  const myName = (isP1 ? b.p1_username : b.p2_username) ?? "Opponent";
+  if (oppChat) {
+    const oppAnswered = isP1 ? b.p2_answer : b.p1_answer;
+    if (!oppAnswered) {
+      await tg("sendMessage", {
+        chat_id: oppChat,
+        text: `⚡ *${myName}* answered. Your turn!`,
+        parse_mode: "Markdown",
+      });
+    }
+  }
+
+  // Reload and check if both answered
+  const fresh = await findBattle(code);
+  if (!fresh) return;
+  if (fresh.p1_answer && fresh.p2_answer) {
+    await revealBattleRound(fresh);
+  }
+}
+
+async function revealBattleRound(b: Battle) {
+  if (!b.current_question_id || !b.p2_chat) return;
+  const { data: q } = await supabaseAdmin
+    .from("questions")
+    .select("*")
+    .eq("id", b.current_question_id)
+    .single();
+  if (!q) return;
+  const opts = [q.option_a, q.option_b, q.option_c, q.option_d];
+  const correctL = (q.answer as string).toUpperCase();
+  const correctText = opts[LETTERS.indexOf(correctL as (typeof LETTERS)[number])];
+  const p1ok = b.p1_answer?.toUpperCase() === correctL;
+  const p2ok = b.p2_answer?.toUpperCase() === correctL;
+  const newP1 = b.p1_score + (p1ok ? 1 : 0);
+  const newP2 = b.p2_score + (p2ok ? 1 : 0);
+  const p1Name = b.p1_username ?? "P1";
+  const p2Name = b.p2_username ?? "P2";
+  const summary =
+    `🔓 *Round ${b.round + 1} reveal*\n\n` +
+    `Correct: *${correctL}* — ${correctText}\n\n` +
+    `${p1ok ? "✅" : "❌"} *${p1Name}* picked *${b.p1_answer}*\n` +
+    `${p2ok ? "✅" : "❌"} *${p2Name}* picked *${b.p2_answer}*\n\n` +
+    `📊 *Score:* ${newP1} — ${newP2}`;
+  await tg("sendMessage", { chat_id: b.p1_chat, text: summary, parse_mode: "Markdown" });
+  await tg("sendMessage", { chat_id: b.p2_chat, text: summary, parse_mode: "Markdown" });
+
+  const nextRound = b.round + 1;
+  if (nextRound >= b.total_questions) {
+    await updateBattle(b.code, {
+      status: "done",
+      p1_score: newP1,
+      p2_score: newP2,
+      round: nextRound,
+    });
+    let outcome: string;
+    if (newP1 === newP2) outcome = "🤝 *It's a draw!*";
+    else if (newP1 > newP2) outcome = `🏆 *${p1Name} wins!*`;
+    else outcome = `🏆 *${p2Name} wins!*`;
+    const finale = `🏁 *Battle over*\n\nFinal: ${p1Name} ${newP1} — ${newP2} ${p2Name}\n\n${outcome}`;
+    await tg("sendMessage", {
+      chat_id: b.p1_chat,
+      text: finale,
+      parse_mode: "Markdown",
+      reply_markup: quickMenu(),
+    });
+    await tg("sendMessage", {
+      chat_id: b.p2_chat,
+      text: finale,
+      parse_mode: "Markdown",
+      reply_markup: quickMenu(),
+    });
+    return;
+  }
+
+  await updateBattle(b.code, {
+    p1_score: newP1,
+    p2_score: newP2,
+    round: nextRound,
+    p1_answer: null,
+    p2_answer: null,
+  });
+  const next = await findBattle(b.code);
+  if (next) await sendBattleRound(next);
+}
+
 function welcomeText() {
   return (
     "👋 *Welcome to Study Bot!*\n\n" +
@@ -354,6 +694,8 @@ function welcomeText() {
     "/random — random from any subject\n" +
     "/topics — browse 20 topics\n" +
     "/quiz — start a 10/20/50-question round\n" +
+    "/battle — challenge a friend (1v1)\n" +
+    "/join CODE — join a friend's battle\n" +
     "/leaderboard — top scorers\n" +
     "/mode — switch between quiz polls or buttons\n" +
     "/score — your score\n" +
@@ -390,6 +732,22 @@ async function handleCommand(chatId: number, username: string | null, text: stri
     case "/quiz":
       await sendQuizMenu(chatId);
       return;
+    case "/battle":
+      await sendBattleTopicMenu(chatId);
+      return;
+    case "/join": {
+      const code = text.split(/\s+/)[1];
+      if (!code) {
+        await tg("sendMessage", {
+          chat_id: chatId,
+          text: "Usage: `/join CODE`",
+          parse_mode: "Markdown",
+        });
+        return;
+      }
+      await joinBattle(chatId, username, code);
+      return;
+    }
     case "/leaderboard":
     case "/top":
       await sendLeaderboard(chatId);
@@ -493,7 +851,15 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
 
           // ---- Allowed users ----
           if (msg && typeof msg.text === "string") {
-            if (msg.text.startsWith("/")) {
+            // Deep-link battle join: /start bt_<code>
+            const parts = msg.text.trim().split(/\s+/);
+            if (
+              parts[0].toLowerCase().startsWith("/start") &&
+              parts[1] &&
+              parts[1].toLowerCase().startsWith("bt_")
+            ) {
+              await joinBattle(chatId, username, parts[1].slice(3));
+            } else if (msg.text.startsWith("/")) {
               await handleCommand(chatId, username, msg.text);
             } else {
               await tg("sendMessage", {
@@ -533,6 +899,31 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
               await startQuizSession(chatId, n, st?.mode ?? "button");
+            } else if (data.startsWith("bt-topic:")) {
+              const rest = data.slice("bt-topic:".length);
+              const sep = rest.indexOf(":");
+              const subj = rest.slice(0, sep);
+              const topic = rest.slice(sep + 1);
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              await createBattle(
+                chatId,
+                username,
+                subj === "*" ? null : subj,
+                topic === "*" ? null : topic,
+              );
+            } else if (data.startsWith("bt-cancel:")) {
+              const code = data.slice("bt-cancel:".length);
+              const b = await findBattle(code);
+              if (b && b.p1_chat === chatId && b.status === "waiting") {
+                await updateBattle(code, { status: "done" });
+                await tg("answerCallbackQuery", { callback_query_id: cb.id, text: "Cancelled" });
+                await tg("sendMessage", { chat_id: chatId, text: "✖️ Battle cancelled." });
+              } else {
+                await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              }
+            } else if (data.startsWith("bt-ans:")) {
+              const [, code, roundStr, letter] = data.split(":");
+              await handleBattleAnswer(chatId, cb.id, code, roundStr, letter);
             } else if (data === "next:random") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
