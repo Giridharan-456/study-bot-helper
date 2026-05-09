@@ -134,13 +134,10 @@ function quickMenu() {
       ],
       [
         { text: "Score", callback_data: "menu:score" },
-        { text: "Leaderboard", callback_data: "menu:leaderboard" },
-      ],
-      [
         { text: "Progress", callback_data: "menu:progress" },
-        { text: "Study plan", callback_data: "menu:plan" },
       ],
       [
+        { text: "Study plan", callback_data: "menu:plan" },
         { text: "Mode", callback_data: "menu:mode" },
       ],
     ],
@@ -231,7 +228,7 @@ async function sendScore(chatId: number) {
   const pct = total ? Math.round((correct / total) * 100) : 0;
   await tg("sendMessage", {
     chat_id: chatId,
-    text: `📈 *Your score*\n\nCorrect: *${correct}* / ${total}\nAccuracy: *${pct}%*`,
+    text: `*Your score*\n\nAnswered: *${total}*\nAccuracy: *${pct}%*`,
     parse_mode: "Markdown",
     reply_markup: quickMenu(),
   });
@@ -253,34 +250,7 @@ async function sendProgress(chatId: number) {
 
   await tg("sendMessage", {
     chat_id: chatId,
-    text: `*Progress snapshot*\n\nAccuracy: *${pct}%*\nAnswered: *${total}*\nCorrect: *${correct}*\nFocus: *${focus}*\nMode: *${modeLabel}*\n\n${nextTip}`,
-    parse_mode: "Markdown",
-    reply_markup: quickMenu(),
-  });
-}
-
-async function sendLeaderboard(chatId: number) {
-  const { data } = await supabaseAdmin
-    .from("user_scores")
-    .select("chat_id,username,total,correct")
-    .gt("total", 0)
-    .order("correct", { ascending: false })
-    .order("total", { ascending: true })
-    .limit(5);
-  const rows = (data ?? []) as { chat_id: number; username: string | null; total: number; correct: number }[];
-  const text = rows.length
-    ? rows
-        .map((row, index) => {
-          const name = row.username ? `@${row.username.replace(/^@/, "")}` : `Student ${String(row.chat_id).slice(-4)}`;
-          const pct = row.total ? Math.round((row.correct / row.total) * 100) : 0;
-          return `${index + 1}. ${name} - ${row.correct}/${row.total} (${pct}%)`;
-        })
-        .join("\n")
-    : "No scores yet. Answer a few button-mode questions to start the leaderboard.";
-
-  await tg("sendMessage", {
-    chat_id: chatId,
-    text: `*Leaderboard*\n\n${text}`,
+    text: `*Progress snapshot*\n\nAccuracy: *${pct}%*\nAnswered: *${total}*\nFocus: *${focus}*\nMode: *${modeLabel}*\n\n${nextTip}`,
     parse_mode: "Markdown",
     reply_markup: quickMenu(),
   });
@@ -326,9 +296,7 @@ function welcomeText() {
     "/topics — browse 20 topics\n" +
     "/mode — switch between quiz polls or buttons\n" +
     "/score — your score\n" +
-    "/progress - accuracy, focus and next step\n" +
-    "/leaderboard - top students\n" +
-    "/plan - 15 minute study routine\n" +
+    "/progress - accuracy, focus and next step\n" +    "/plan - 15 minute study routine\n" +
     "/reset — reset your score\n"
   );
 }
@@ -369,9 +337,6 @@ async function handleCommand(chatId: number, username: string | null, text: stri
     }
     case "/progress":
       await sendProgress(chatId);
-      return;
-    case "/leaderboard":
-      await sendLeaderboard(chatId);
       return;
     case "/plan":
       await sendStudyPlan(chatId);
@@ -467,12 +432,12 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               await handleCommand(chatId, username, msg.text);
             } else {
               const normalized = msg.text.trim().toLowerCase();
-              if (["score", "progress", "leaderboard", "plan", "topics"].includes(normalized)) {
+              if (["score", "progress", "plan", "topics"].includes(normalized)) {
                 await handleCommand(chatId, username, "/" + normalized);
               } else {
                 await tg("sendMessage", {
                   chat_id: chatId,
-                  text: "Send /help to see commands, or type score, topics, progress, leaderboard, or plan.",
+                  text: "Send /help to see commands, or type score, topics, progress, or plan.",
                   reply_markup: quickMenu(),
                 });
               }
@@ -502,11 +467,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               await sendScore(chatId);
             } else if (data === "menu:progress") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
-              await sendProgress(chatId);
-            } else if (data === "menu:leaderboard") {
-              await tg("answerCallbackQuery", { callback_query_id: cb.id });
-              await sendLeaderboard(chatId);
-            } else if (data === "menu:plan") {
+              await sendProgress(chatId); else if (data === "menu:plan") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               await sendStudyPlan(chatId);
             } else if (data === "menu:mode") {
@@ -541,7 +502,8 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                 const opts = [q.option_a, q.option_b, q.option_c, q.option_d];
                 const correctText = opts[LETTERS.indexOf(q.answer.toUpperCase() as (typeof LETTERS)[number])];
                 const score = await bumpScore(chatId, username, correct);
-                await tg("answerCallbackQuery", {
+          const pct = score.total ? Math.round((score.correct / score.total) * 100) : 0;
+          await tg("answerCallbackQuery", {
                   callback_query_id: cb.id,
                   text: correct ? "✅ Correct!" : "❌ Wrong",
                   show_alert: false,
@@ -550,7 +512,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                   chat_id: chatId,
                   text:
                     (correct ? "✅ *Correct!*" : `❌ *Wrong.* Answer: *${q.answer}* — ${correctText}`) +
-                    `\n\nScore: ${score.correct}/${score.total}`,
+                    `\n\nAccuracy: ${pct}% after ${score.total} answered`,
                   parse_mode: "Markdown",
                   reply_markup: quickMenu(),
                 });
