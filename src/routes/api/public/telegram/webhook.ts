@@ -836,7 +836,7 @@ async function handleCommand(chatId: number, username: string | null, text: stri
   const match = text.match(/\/[A-Za-z]+/);
   const cmd = (match ? match[0] : text.split(/\s+/)[0]).toLowerCase().split("@")[0];
   const state = await getState(chatId);
-  const mode = state?.mode ?? "poll";
+  const mode = state?.mode ?? "button";
 
   switch (cmd) {
     case "/start":
@@ -1088,7 +1088,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             } else if (data === "next:random") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
-              await sendQuestion(chatId, null, null, st?.mode ?? "poll");
+              await sendQuestion(chatId, null, null, st?.mode ?? "button");
             } else if (data.startsWith("subj:")) {
               const subj = data.slice("subj:".length);
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
@@ -1100,7 +1100,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               const topic = rest.slice(sep + 1);
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
-              await sendQuestion(chatId, subj, topic, st?.mode ?? "poll");
+              await sendQuestion(chatId, subj, topic, st?.mode ?? "button");
             } else if (data.startsWith("ans:")) {
               const [, qidStr, letter] = data.split(":");
               const qid = Number(qidStr);
