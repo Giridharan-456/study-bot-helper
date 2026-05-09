@@ -88,6 +88,24 @@ export type Database = {
           },
         ]
       }
+      bookmarks: {
+        Row: {
+          chat_id: number
+          created_at: string
+          question_id: number
+        }
+        Insert: {
+          chat_id: number
+          created_at?: string
+          question_id: number
+        }
+        Update: {
+          chat_id?: number
+          created_at?: string
+          question_id?: number
+        }
+        Relationships: []
+      }
       bot_users: {
         Row: {
           chat_id: number
@@ -244,6 +262,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      wrong_answers: {
+        Row: {
+          chat_id: number
+          last_wrong_at: string
+          question_id: number
+          wrong_count: number
+        }
+        Insert: {
+          chat_id: number
+          last_wrong_at?: string
+          question_id: number
+          wrong_count?: number
+        }
+        Update: {
+          chat_id?: number
+          last_wrong_at?: string
+          question_id?: number
+          wrong_count?: number
+        }
+        Relationships: []
       }
     }
     Views: {
