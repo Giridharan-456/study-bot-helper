@@ -752,7 +752,7 @@ async function handleCommand(chatId: number, username: string | null, text: stri
         chat_id: chatId,
         text: welcomeText(),
         parse_mode: "Markdown",
-        reply_markup: { remove_keyboard: true },
+        reply_markup: persistentKeyboard(),
       });
       await tg("sendMessage", {
         chat_id: chatId,
@@ -862,7 +862,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                     text:
                       "🎉 Access granted!\n\n" + welcomeText(),
                     parse_mode: "Markdown",
-                    reply_markup: { remove_keyboard: true },
+                    reply_markup: persistentKeyboard(),
                   });
                   return Response.json({ ok: true });
                 }
