@@ -732,6 +732,22 @@ async function handleCommand(chatId: number, username: string | null, text: stri
     case "/quiz":
       await sendQuizMenu(chatId);
       return;
+    case "/battle":
+      await sendBattleTopicMenu(chatId);
+      return;
+    case "/join": {
+      const code = text.split(/\s+/)[1];
+      if (!code) {
+        await tg("sendMessage", {
+          chat_id: chatId,
+          text: "Usage: `/join CODE`",
+          parse_mode: "Markdown",
+        });
+        return;
+      }
+      await joinBattle(chatId, username, code);
+      return;
+    }
     case "/leaderboard":
     case "/top":
       await sendLeaderboard(chatId);
