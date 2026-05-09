@@ -163,14 +163,43 @@ function quickMenu() {
 function persistentKeyboard() {
   return {
     keyboard: [
-      [{ text: "/random" }, { text: "/topics" }],
-      [{ text: "/quiz" }, { text: "/score" }],
-      [{ text: "/battle" }, { text: "/leaderboard" }],
-      [{ text: "/mode" }, { text: "/help" }],
+      [{ text: "🎲 /random" }, { text: "🗂 /topics" }],
+      [{ text: "📚 /ictsm" }, { text: "💼 /employability" }],
+      [{ text: "🎯 /quiz" }, { text: "⚔️ /battle" }],
+      [{ text: "📈 /score" }, { text: "🏆 /leaderboard" }],
+      [{ text: "⚙️ /mode" }, { text: "♻️ /reset" }],
+      [{ text: "❓ /help" }],
     ],
     resize_keyboard: true,
     is_persistent: true,
   };
+}
+
+const BOT_COMMANDS = [
+  { command: "random", description: "🎲 Random question (any subject)" },
+  { command: "ictsm", description: "📚 Random ICTSM question" },
+  { command: "employability", description: "💼 Random Employability question" },
+  { command: "topics", description: "🗂 Browse all 20 topics" },
+  { command: "quiz", description: "🎯 10/20/50-question round" },
+  { command: "battle", description: "⚔️ 1v1 quiz with a friend" },
+  { command: "join", description: "🤝 Join a friend's battle" },
+  { command: "score", description: "📈 Your lifetime score" },
+  { command: "leaderboard", description: "🏆 Top scorers" },
+  { command: "mode", description: "⚙️ Switch quiz polls / buttons" },
+  { command: "reset", description: "♻️ Reset your score" },
+  { command: "help", description: "❓ Show this menu" },
+];
+
+let commandsRegistered = false;
+async function ensureCommandsRegistered() {
+  if (commandsRegistered) return;
+  commandsRegistered = true;
+  try {
+    await tg("setMyCommands", { commands: BOT_COMMANDS });
+    await tg("setChatMenuButton", { menu_button: { type: "commands" } });
+  } catch {
+    commandsRegistered = false;
+  }
 }
 
 async function sendQuestion(
@@ -704,7 +733,9 @@ function welcomeText() {
 }
 
 async function handleCommand(chatId: number, username: string | null, text: string) {
-  const cmd = text.split(/\s+/)[0].toLowerCase().split("@")[0];
+  // Accept buttons like "🎲 /random" — find the first slash-command token.
+  const match = text.match(/\/[A-Za-z]+/);
+  const cmd = (match ? match[0] : text.split(/\s+/)[0]).toLowerCase().split("@")[0];
   const state = await getState(chatId);
   const mode = state?.mode ?? "poll";
 
@@ -736,7 +767,7 @@ async function handleCommand(chatId: number, username: string | null, text: stri
       await sendBattleTopicMenu(chatId);
       return;
     case "/join": {
-      const code = text.split(/\s+/)[1];
+      const code = text.match(/\/join\s+(\S+)/i)?.[1];
       if (!code) {
         await tg("sendMessage", {
           chat_id: chatId,
@@ -795,6 +826,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
         }
 
         const update = await request.json();
+        void ensureCommandsRegistered();
 
         try {
           const msg = update.message ?? update.edited_message;
