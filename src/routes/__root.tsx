@@ -89,6 +89,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         name: "twitter:description",
         content: "A Telegram-first helper for ICTSM and Employability Skills practice.",
       },
+      { name: "description", content: "A Telegram bot that helps users study by providing MCQs from uploaded files." },
+      { property: "og:description", content: "A Telegram bot that helps users study by providing MCQs from uploaded files." },
+      { name: "twitter:description", content: "A Telegram bot that helps users study by providing MCQs from uploaded files." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f4caffbb-aef6-4924-8c54-30123d2dd46d/id-preview-be138c14--d5a40e96-a5c7-4f7b-a06d-de07cdb3b7ab.lovable.app-1778337848783.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f4caffbb-aef6-4924-8c54-30123d2dd46d/id-preview-be138c14--d5a40e96-a5c7-4f7b-a06d-de07cdb3b7ab.lovable.app-1778337848783.png" },
     ],
     links: [
       {
