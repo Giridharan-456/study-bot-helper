@@ -198,12 +198,12 @@ function persistentKeyboard() {
       [{ text: "🎲 /random" }, { text: "🗂 /topics" }],
       // Subjects
       [{ text: "📚 /ictsm" }, { text: "💼 /employability" }],
-      // Play modes
+      // Modes
       [{ text: "🎯 /quiz" }, { text: "⚔️ /battle" }],
+      // Practice
+      [{ text: "🔁 /review" }, { text: "🔖 /bookmarks" }],
       // Stats
       [{ text: "📈 /score" }, { text: "🏆 /leaderboard" }],
-      // Settings
-      [{ text: "⚙️ /mode" }, { text: "♻️ /reset" }],
       // Help
       [{ text: "❓ /help" }],
     ],
@@ -220,9 +220,10 @@ const BOT_COMMANDS = [
   { command: "quiz", description: "🎯 10/20/50-question round" },
   { command: "battle", description: "⚔️ 1v1 quiz with a friend" },
   { command: "join", description: "🤝 Join a friend's battle" },
+  { command: "review", description: "🔁 Re-do questions you got wrong" },
+  { command: "bookmarks", description: "🔖 Practice your saved questions" },
   { command: "score", description: "📈 Your lifetime score" },
   { command: "leaderboard", description: "🏆 Top scorers" },
-  { command: "mode", description: "⚙️ Switch quiz polls / buttons" },
   { command: "reset", description: "♻️ Reset your score" },
   { command: "help", description: "❓ Show this menu" },
 ];
@@ -243,42 +244,27 @@ async function sendQuestion(
   chatId: number,
   subject: string | null,
   topic: string | null,
-  mode: string,
+  _mode?: string,
 ) {
   const q = await pickQuestion(subject, topic);
   if (!q) {
     await tg("sendMessage", { chat_id: chatId, text: "No questions found." });
     return;
   }
-  await setState(chatId, { mode, subject, topic, current_question_id: q.id });
-
-  const correctIdx = LETTERS.indexOf(q.answer.toUpperCase() as (typeof LETTERS)[number]);
+  await setState(chatId, { mode: "button", subject, topic, current_question_id: q.id });
   const options = [q.option_a, q.option_b, q.option_c, q.option_d];
-
-  if (mode === "poll") {
-    // Telegram quiz polls require option text <= 100 chars and question <= 300 chars
-    const safeQ = q.question.length > 290 ? q.question.slice(0, 287) + "..." : q.question;
-    const safeOpts = options.map((o) => (o.length > 95 ? o.slice(0, 92) + "..." : o));
-    await tg("sendPoll", {
-      chat_id: chatId,
-      question: `[${q.subject} • ${q.topic}]\n${safeQ}`,
-      options: safeOpts,
-      type: "quiz",
-      correct_option_id: correctIdx,
-      is_anonymous: false,
-    });
-  } else {
-    await tg("sendMessage", {
-      chat_id: chatId,
-      text: formatQuestionCard(q.subject, q.topic, q.question, options),
-      parse_mode: "HTML",
-      reply_markup: {
-        inline_keyboard: [
-          LETTERS.map((L) => ({ text: L, callback_data: `ans:${q.id}:${L}` })),
-        ],
-      },
-    });
-  }
+  const bookmarked = await isBookmarked(chatId, q.id);
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: formatQuestionCard(q.subject, q.topic, q.question, options),
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        LETTERS.map((L) => ({ text: L, callback_data: `ans:${q.id}:${L}` })),
+        [{ text: bookmarked ? "🔖 Bookmarked" : "🔖 Bookmark", callback_data: `bm:${q.id}` }],
+      ],
+    },
+  });
 }
 
 async function sendTopicsMenu(chatId: number, subject?: string) {
@@ -388,16 +374,122 @@ async function endQuizSession(chatId: number, total: number, correct: number) {
   });
 }
 
-async function sendModeMenu(chatId: number) {
+// ============================================================
+// Wrong-answer review + bookmarks
+// ============================================================
+
+async function addWrongAnswer(chatId: number, questionId: number) {
+  await supabaseAdmin.from("wrong_answers").upsert(
+    {
+      chat_id: chatId,
+      question_id: questionId,
+      wrong_count: 1,
+      last_wrong_at: new Date().toISOString(),
+    },
+    { onConflict: "chat_id,question_id", ignoreDuplicates: false },
+  );
+}
+
+async function removeWrongAnswer(chatId: number, questionId: number) {
+  await supabaseAdmin
+    .from("wrong_answers")
+    .delete()
+    .eq("chat_id", chatId)
+    .eq("question_id", questionId);
+}
+
+async function pickWrongAnswerQuestion(chatId: number) {
+  const { data } = await supabaseAdmin
+    .from("wrong_answers")
+    .select("question_id")
+    .eq("chat_id", chatId)
+    .order("last_wrong_at", { ascending: true })
+    .limit(50);
+  const ids = (data ?? []).map((r) => r.question_id as number);
+  if (!ids.length) return null;
+  const qid = ids[Math.floor(Math.random() * ids.length)];
+  const { data: q } = await supabaseAdmin
+    .from("questions")
+    .select("*")
+    .eq("id", qid)
+    .single();
+  return q;
+}
+
+async function isBookmarked(chatId: number, questionId: number) {
+  const { data } = await supabaseAdmin
+    .from("bookmarks")
+    .select("question_id")
+    .eq("chat_id", chatId)
+    .eq("question_id", questionId)
+    .maybeSingle();
+  return !!data;
+}
+
+async function toggleBookmark(chatId: number, questionId: number) {
+  if (await isBookmarked(chatId, questionId)) {
+    await supabaseAdmin
+      .from("bookmarks")
+      .delete()
+      .eq("chat_id", chatId)
+      .eq("question_id", questionId);
+    return false;
+  }
+  await supabaseAdmin
+    .from("bookmarks")
+    .insert({ chat_id: chatId, question_id: questionId });
+  return true;
+}
+
+async function pickBookmarkedQuestion(chatId: number) {
+  const { data } = await supabaseAdmin
+    .from("bookmarks")
+    .select("question_id")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  const ids = (data ?? []).map((r) => r.question_id as number);
+  if (!ids.length) return null;
+  const qid = ids[Math.floor(Math.random() * ids.length)];
+  const { data: q } = await supabaseAdmin
+    .from("questions")
+    .select("*")
+    .eq("id", qid)
+    .single();
+  return q;
+}
+
+async function sendSpecificQuestion(
+  chatId: number,
+  q: {
+    id: number;
+    subject: string;
+    topic: string;
+    question: string;
+    option_a: string;
+    option_b: string;
+    option_c: string;
+    option_d: string;
+    answer: string;
+  },
+  headerLabel?: string,
+) {
+  await setState(chatId, {
+    mode: "button",
+    subject: q.subject,
+    topic: q.topic,
+    current_question_id: q.id,
+  });
+  const options = [q.option_a, q.option_b, q.option_c, q.option_d];
+  const bookmarked = await isBookmarked(chatId, q.id);
   await tg("sendMessage", {
     chat_id: chatId,
-    text: "Choose your quiz mode:",
+    text: formatQuestionCard(q.subject, q.topic, q.question, options, headerLabel),
+    parse_mode: "HTML",
     reply_markup: {
       inline_keyboard: [
-        [
-          { text: "📊 Quiz Polls", callback_data: "mode:poll" },
-          { text: "🔘 Inline Buttons", callback_data: "mode:button" },
-        ],
+        LETTERS.map((L) => ({ text: L, callback_data: `ans:${q.id}:${L}` })),
+        [{ text: bookmarked ? "🔖 Bookmarked" : "🔖 Bookmark", callback_data: `bm:${q.id}` }],
       ],
     },
   });
@@ -731,8 +823,9 @@ function welcomeText() {
     "/quiz — start a 10/20/50-question round\n" +
     "/battle — challenge a friend (1v1)\n" +
     "/join CODE — join a friend's battle\n" +
+    "/review — re-do questions you got wrong\n" +
+    "/bookmarks — practice your saved questions\n" +
     "/leaderboard — top scorers\n" +
-    "/mode — switch between quiz polls or buttons\n" +
     "/score — your score\n" +
     "/reset — reset your score\n"
   );
@@ -743,7 +836,7 @@ async function handleCommand(chatId: number, username: string | null, text: stri
   const match = text.match(/\/[A-Za-z]+/);
   const cmd = (match ? match[0] : text.split(/\s+/)[0]).toLowerCase().split("@")[0];
   const state = await getState(chatId);
-  const mode = state?.mode ?? "poll";
+  const mode = state?.mode ?? "button";
 
   switch (cmd) {
     case "/start":
@@ -754,13 +847,6 @@ async function handleCommand(chatId: number, username: string | null, text: stri
         parse_mode: "Markdown",
         reply_markup: persistentKeyboard(),
       });
-      await tg("sendMessage", {
-        chat_id: chatId,
-        text: "Quick actions:"
-      });
-      return;
-    case "/mode":
-      await sendModeMenu(chatId);
       return;
     case "/topics":
       await sendTopicsMenu(chatId);
@@ -771,6 +857,35 @@ async function handleCommand(chatId: number, username: string | null, text: stri
     case "/battle":
       await sendBattleTopicMenu(chatId);
       return;
+    case "/review": {
+      const q = await pickWrongAnswerQuestion(chatId);
+      if (!q) {
+        await tg("sendMessage", {
+          chat_id: chatId,
+          text:
+            "🎉 Nothing to review! You haven't gotten any questions wrong yet.\n\n" +
+            "Try /random or /quiz to practice more.",
+        });
+        return;
+      }
+      await sendSpecificQuestion(chatId, q, "🔁 Review · question you got wrong");
+      return;
+    }
+    case "/bookmarks": {
+      const q = await pickBookmarkedQuestion(chatId);
+      if (!q) {
+        await tg("sendMessage", {
+          chat_id: chatId,
+          text:
+            "🔖 No bookmarks yet.\n\n" +
+            "Tap <b>🔖 Bookmark</b> below any question to save it for later.",
+          parse_mode: "HTML",
+        });
+        return;
+      }
+      await sendSpecificQuestion(chatId, q, "🔖 From your bookmarks");
+      return;
+    }
     case "/join": {
       const code = text.match(/\/join\s+(\S+)/i)?.[1];
       if (!code) {
@@ -908,16 +1023,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
           if (cb?.data && cb.message?.chat?.id) {
             const data = cb.data as string;
 
-            if (data.startsWith("mode:")) {
-              const newMode = data.split(":")[1];
-              await setState(chatId, { mode: newMode });
-              await tg("answerCallbackQuery", { callback_query_id: cb.id, text: `Mode: ${newMode}` });
-              await tg("sendMessage", {
-                chat_id: chatId,
-                text: `✅ Mode set to *${newMode === "poll" ? "Quiz Polls" : "Inline Buttons"}*. Try /random.`,
-                parse_mode: "Markdown"
-              });
-            } else if (data === "menu:topics") {
+            if (data === "menu:topics") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               await sendTopicsMenu(chatId);
             } else if (data === "menu:score") {
@@ -926,9 +1032,29 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             } else if (data === "menu:leaderboard") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               await sendLeaderboard(chatId);
-            } else if (data === "menu:mode") {
-              await tg("answerCallbackQuery", { callback_query_id: cb.id });
-              await sendModeMenu(chatId);
+            } else if (data.startsWith("bm:")) {
+              const qid = Number(data.slice(3));
+              const nowOn = await toggleBookmark(chatId, qid);
+              await tg("answerCallbackQuery", {
+                callback_query_id: cb.id,
+                text: nowOn ? "🔖 Bookmarked" : "Bookmark removed",
+              });
+              // Update only the bookmark button label
+              if (cb.message?.message_id && cb.message?.reply_markup) {
+                const kb = (cb.message.reply_markup as { inline_keyboard?: unknown[][] }).inline_keyboard ?? [];
+                const newKb = kb.map((row) =>
+                  (row as Array<{ text: string; callback_data: string }>).map((btn) =>
+                    btn.callback_data === data
+                      ? { ...btn, text: nowOn ? "🔖 Bookmarked" : "🔖 Bookmark" }
+                      : btn,
+                  ),
+                );
+                await tg("editMessageReplyMarkup", {
+                  chat_id: chatId,
+                  message_id: cb.message.message_id,
+                  reply_markup: { inline_keyboard: newKb },
+                });
+              }
             } else if (data.startsWith("quiz:")) {
               const n = Number(data.split(":")[1]);
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
@@ -962,7 +1088,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             } else if (data === "next:random") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
-              await sendQuestion(chatId, null, null, st?.mode ?? "poll");
+              await sendQuestion(chatId, null, null, st?.mode ?? "button");
             } else if (data.startsWith("subj:")) {
               const subj = data.slice("subj:".length);
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
@@ -974,7 +1100,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               const topic = rest.slice(sep + 1);
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
-              await sendQuestion(chatId, subj, topic, st?.mode ?? "poll");
+              await sendQuestion(chatId, subj, topic, st?.mode ?? "button");
             } else if (data.startsWith("ans:")) {
               const [, qidStr, letter] = data.split(":");
               const qid = Number(qidStr);
@@ -988,6 +1114,11 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                 const opts = [q.option_a, q.option_b, q.option_c, q.option_d];
                 const correctText = opts[LETTERS.indexOf(q.answer.toUpperCase() as (typeof LETTERS)[number])];
                 const score = await bumpScore(chatId, username, correct);
+                if (correct) {
+                  await removeWrongAnswer(chatId, qid);
+                } else {
+                  await addWrongAnswer(chatId, qid);
+                }
                 await tg("answerCallbackQuery", {
                   callback_query_id: cb.id,
                   text: correct ? "✅ Correct!" : "❌ Wrong",
