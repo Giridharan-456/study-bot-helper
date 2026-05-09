@@ -90,34 +90,49 @@ async function bumpScore(chatId: number, username: string | null, correct: boole
   return { total, correct: ok };
 }
 
-async function pickQuestion(subject: string | null) {
-  let q = supabaseAdmin.from("questions").select("*");
-  if (subject) q = q.eq("subject", subject);
-  const { data: countRow } = await supabaseAdmin
-    .from("questions")
-    .select("id", { count: "exact", head: true })
-    .then((r) => ({ data: r.count ?? 0 }));
-  // Use random offset via raw query is overkill; fetch random by ordering by random() is heavy.
-  // Simple approach: get all IDs (small dataset, ~640) and pick one.
-  const idsRes = await (subject
-    ? supabaseAdmin.from("questions").select("id").eq("subject", subject)
-    : supabaseAdmin.from("questions").select("id"));
+async function pickQuestion(subject: string | null, topic: string | null) {
+  let query = supabaseAdmin.from("questions").select("id");
+  if (subject) query = query.eq("subject", subject);
+  if (topic) query = query.eq("topic", topic);
+  const idsRes = await query;
   const ids = (idsRes.data ?? []) as { id: number }[];
   if (!ids.length) return null;
   const pick = ids[Math.floor(Math.random() * ids.length)].id;
   const { data } = await supabaseAdmin.from("questions").select("*").eq("id", pick).single();
-  void countRow;
-  void q;
   return data;
 }
 
-async function sendQuestion(chatId: number, subject: string | null, mode: string) {
-  const q = await pickQuestion(subject);
+function quickMenu() {
+  return {
+    inline_keyboard: [
+      [
+        { text: "🎲 Next random", callback_data: "next:random" },
+        { text: "🗂 Topics", callback_data: "menu:topics" },
+      ],
+      [
+        { text: "📚 ICTSM", callback_data: "subj:ICTSM" },
+        { text: "💼 Employability", callback_data: "subj:Employability" },
+      ],
+      [
+        { text: "📈 Score", callback_data: "menu:score" },
+        { text: "⚙️ Mode", callback_data: "menu:mode" },
+      ],
+    ],
+  };
+}
+
+async function sendQuestion(
+  chatId: number,
+  subject: string | null,
+  topic: string | null,
+  mode: string,
+) {
+  const q = await pickQuestion(subject, topic);
   if (!q) {
-    await tg("sendMessage", { chat_id: chatId, text: "No questions found for that subject." });
+    await tg("sendMessage", { chat_id: chatId, text: "No questions found." });
     return;
   }
-  await setState(chatId, { mode, subject, current_question_id: q.id });
+  await setState(chatId, { mode, subject, topic, current_question_id: q.id });
 
   const correctIdx = LETTERS.indexOf(q.answer.toUpperCase() as (typeof LETTERS)[number]);
   const options = [q.option_a, q.option_b, q.option_c, q.option_d];
@@ -152,6 +167,65 @@ async function sendQuestion(chatId: number, subject: string | null, mode: string
   }
 }
 
+async function sendTopicsMenu(chatId: number, subject?: string) {
+  let query = supabaseAdmin.from("questions").select("subject,topic");
+  if (subject) query = query.eq("subject", subject);
+  const { data } = await query;
+  const seen = new Set<string>();
+  const topics: { subject: string; topic: string }[] = [];
+  for (const r of (data ?? []) as { subject: string; topic: string }[]) {
+    const key = `${r.subject}|${r.topic}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      topics.push(r);
+    }
+  }
+  topics.sort((a, b) =>
+    a.subject === b.subject ? a.topic.localeCompare(b.topic) : a.subject.localeCompare(b.subject),
+  );
+  const rows = topics.map((t) => [
+    { text: `${t.subject === "ICTSM" ? "📚" : "💼"} ${t.topic}`, callback_data: `topic:${t.subject}:${t.topic}` },
+  ]);
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: subject ? `🗂 *${subject} topics* — pick one:` : "🗂 *Pick a topic:*",
+    parse_mode: "Markdown",
+    reply_markup: { inline_keyboard: rows },
+  });
+}
+
+async function sendScore(chatId: number) {
+  const { data } = await supabaseAdmin
+    .from("user_scores")
+    .select("total,correct")
+    .eq("chat_id", chatId)
+    .maybeSingle();
+  const total = data?.total ?? 0;
+  const correct = data?.correct ?? 0;
+  const pct = total ? Math.round((correct / total) * 100) : 0;
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: `📈 *Your score*\n\nCorrect: *${correct}* / ${total}\nAccuracy: *${pct}%*`,
+    parse_mode: "Markdown",
+    reply_markup: quickMenu(),
+  });
+}
+
+async function sendModeMenu(chatId: number) {
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: "Choose your quiz mode:",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "📊 Quiz Polls", callback_data: "mode:poll" },
+          { text: "🔘 Inline Buttons", callback_data: "mode:button" },
+        ],
+      ],
+    },
+  });
+}
+
 function welcomeText() {
   return (
     "👋 *Welcome to Study Bot!*\n\n" +
@@ -160,6 +234,7 @@ function welcomeText() {
     "/ictsm — random ICTSM question\n" +
     "/employability — random Employability question\n" +
     "/random — random from any subject\n" +
+    "/topics — browse 20 topics\n" +
     "/mode — switch between quiz polls or buttons\n" +
     "/score — your score\n" +
     "/reset — reset your score\n"
@@ -174,45 +249,30 @@ async function handleCommand(chatId: number, username: string | null, text: stri
   switch (cmd) {
     case "/start":
     case "/help":
-      await tg("sendMessage", { chat_id: chatId, text: welcomeText(), parse_mode: "Markdown" });
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text: welcomeText(),
+        parse_mode: "Markdown",
+        reply_markup: quickMenu(),
+      });
       return;
     case "/mode":
-      await tg("sendMessage", {
-        chat_id: chatId,
-        text: "Choose your quiz mode:",
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: "📊 Quiz Polls", callback_data: "mode:poll" },
-              { text: "🔘 Inline Buttons", callback_data: "mode:button" },
-            ],
-          ],
-        },
-      });
+      await sendModeMenu(chatId);
+      return;
+    case "/topics":
+      await sendTopicsMenu(chatId);
       return;
     case "/ictsm":
-      await sendQuestion(chatId, "ICTSM", mode);
+      await sendQuestion(chatId, "ICTSM", null, mode);
       return;
     case "/employability":
-      await sendQuestion(chatId, "Employability", mode);
+      await sendQuestion(chatId, "Employability", null, mode);
       return;
     case "/random":
-      await sendQuestion(chatId, null, mode);
+      await sendQuestion(chatId, null, null, mode);
       return;
     case "/score": {
-      const { data } = await supabaseAdmin
-        .from("user_scores")
-        .select("total,correct")
-        .eq("chat_id", chatId)
-        .maybeSingle();
-      const total = data?.total ?? 0;
-      const correct = data?.correct ?? 0;
-      const pct = total ? Math.round((correct / total) * 100) : 0;
-      await tg("sendMessage", {
-        chat_id: chatId,
-        text: `📈 *Your score*\n\nCorrect: *${correct}* / ${total}\nAccuracy: *${pct}%*`,
-        parse_mode: "Markdown",
-      });
+      await sendScore(chatId);
       return;
     }
     case "/reset":
@@ -225,6 +285,7 @@ async function handleCommand(chatId: number, username: string | null, text: stri
       await tg("sendMessage", {
         chat_id: chatId,
         text: "Unknown command. Send /help to see options.",
+        reply_markup: quickMenu(),
       });
   }
 }
@@ -320,7 +381,33 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                 chat_id: chatId,
                 text: `✅ Mode set to *${newMode === "poll" ? "Quiz Polls" : "Inline Buttons"}*. Try /random.`,
                 parse_mode: "Markdown",
+                reply_markup: quickMenu(),
               });
+            } else if (data === "menu:topics") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              await sendTopicsMenu(chatId);
+            } else if (data === "menu:score") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              await sendScore(chatId);
+            } else if (data === "menu:mode") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              await sendModeMenu(chatId);
+            } else if (data === "next:random") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              const st = await getState(chatId);
+              await sendQuestion(chatId, null, null, st?.mode ?? "poll");
+            } else if (data.startsWith("subj:")) {
+              const subj = data.slice("subj:".length);
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              await sendTopicsMenu(chatId, subj);
+            } else if (data.startsWith("topic:")) {
+              const rest = data.slice("topic:".length);
+              const sep = rest.indexOf(":");
+              const subj = rest.slice(0, sep);
+              const topic = rest.slice(sep + 1);
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              const st = await getState(chatId);
+              await sendQuestion(chatId, subj, topic, st?.mode ?? "poll");
             } else if (data.startsWith("ans:")) {
               const [, qidStr, letter] = data.split(":");
               const qid = Number(qidStr);
@@ -345,7 +432,11 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                     (correct ? "✅ *Correct!*" : `❌ *Wrong.* Answer: *${q.answer}* — ${correctText}`) +
                     `\n\nScore: ${score.correct}/${score.total}`,
                   parse_mode: "Markdown",
+                  reply_markup: quickMenu(),
                 });
+                // Auto-send the next question in the same subject/topic context.
+                const st = await getState(chatId);
+                await sendQuestion(chatId, st?.subject ?? null, st?.topic ?? null, st?.mode ?? "button");
               } else {
                 await tg("answerCallbackQuery", { callback_query_id: cb.id });
               }
