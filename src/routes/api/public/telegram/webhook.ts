@@ -191,17 +191,6 @@ async function pickQuestion(subject: string | null, topic: string | null) {
   return data;
 }
 
-function persistentKeyboard() {
-  return {
-    keyboard: [
-      [{ text: "🎲 /random" }, { text: "🗂 /topics" }],
-      [{ text: "🎯 /quiz" }, { text: "⚔️ /battle" }],
-      [{ text: "📈 /score" }, { text: "🏆 /leaderboard" }],
-    ],
-    resize_keyboard: true,
-    is_persistent: true,
-  };
-}
 
 const BOT_COMMANDS = [
   { command: "random", description: "🎲 Random question (any subject)" },
@@ -743,7 +732,7 @@ async function handleCommand(chatId: number, username: string | null, text: stri
         chat_id: chatId,
         text: welcomeText(),
         parse_mode: "Markdown",
-        reply_markup: persistentKeyboard(),
+        reply_markup: { remove_keyboard: true },
       });
       await tg("sendMessage", {
         chat_id: chatId,
@@ -853,7 +842,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                     text:
                       "🎉 Access granted!\n\n" + welcomeText(),
                     parse_mode: "Markdown",
-                    reply_markup: persistentKeyboard(),
+                    reply_markup: { remove_keyboard: true },
                   });
                   return Response.json({ ok: true });
                 }
