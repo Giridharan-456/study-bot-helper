@@ -593,11 +593,8 @@ async function sendBattleRound(b: Battle) {
   const q = await pickQuestion(b.subject, b.topic);
   if (!q || !b.p2_chat) return;
   const opts = [q.option_a, q.option_b, q.option_c, q.option_d];
-  const text =
-    `⚔️ *Round ${b.round + 1}/${b.total_questions}* — ${b.p1_score} vs ${b.p2_score}\n` +
-    `📚 *${q.subject}* — _${q.topic}_\n\n` +
-    `${q.question}\n\n` +
-    LETTERS.map((L, i) => `*${L}.* ${opts[i]}`).join("\n");
+  const header = `⚔️ Round ${b.round + 1}/${b.total_questions}  ·  ${b.p1_score} – ${b.p2_score}`;
+  const text = formatQuestionCard(q.subject, q.topic, q.question, opts, header);
   const reply_markup = {
     inline_keyboard: [
       LETTERS.map((L) => ({ text: L, callback_data: `bt-ans:${b.code}:${b.round}:${L}` })),
@@ -606,13 +603,13 @@ async function sendBattleRound(b: Battle) {
   const m1 = await tg("sendMessage", {
     chat_id: b.p1_chat,
     text,
-    parse_mode: "Markdown",
+    parse_mode: "HTML",
     reply_markup,
   });
   const m2 = await tg("sendMessage", {
     chat_id: b.p2_chat,
     text,
-    parse_mode: "Markdown",
+    parse_mode: "HTML",
     reply_markup,
   });
   await updateBattle(b.code, {
@@ -668,8 +665,8 @@ async function handleBattleAnswer(
     });
     await tg("sendMessage", {
       chat_id: chatId,
-      text: `🔒 You picked *${letter}*. Waiting for opponent…`,
-      parse_mode: "Markdown",
+      text: `🔒 You picked <b>${esc(letter)}</b>. Waiting for opponent…`,
+      parse_mode: "HTML",
     });
   }
 
@@ -681,8 +678,8 @@ async function handleBattleAnswer(
     if (!oppAnswered) {
       await tg("sendMessage", {
         chat_id: oppChat,
-        text: `⚡ *${myName}* answered. Your turn!`,
-        parse_mode: "Markdown",
+        text: `⚡ <b>${esc(myName)}</b> answered. Your turn!`,
+        parse_mode: "HTML",
       });
     }
   }
@@ -712,14 +709,15 @@ async function revealBattleRound(b: Battle) {
   const newP2 = b.p2_score + (p2ok ? 1 : 0);
   const p1Name = b.p1_username ?? "P1";
   const p2Name = b.p2_username ?? "P2";
+  const divider = `━━━━━━━━━━━━━━━`;
   const summary =
-    `🔓 *Round ${b.round + 1} reveal*\n\n` +
-    `Correct: *${correctL}* — ${correctText}\n\n` +
-    `${p1ok ? "✅" : "❌"} *${p1Name}* picked *${b.p1_answer}*\n` +
-    `${p2ok ? "✅" : "❌"} *${p2Name}* picked *${b.p2_answer}*\n\n` +
-    `📊 *Score:* ${newP1} — ${newP2}`;
-  await tg("sendMessage", { chat_id: b.p1_chat, text: summary, parse_mode: "Markdown" });
-  await tg("sendMessage", { chat_id: b.p2_chat, text: summary, parse_mode: "Markdown" });
+    `🔓 <b>Round ${b.round + 1} reveal</b>\n${divider}\n\n` +
+    `🎯 Correct: <b>${correctL}</b> · ${esc(correctText ?? "")}\n\n` +
+    `${p1ok ? "✅" : "❌"} <b>${esc(p1Name)}</b> picked <b>${esc(b.p1_answer ?? "—")}</b>\n` +
+    `${p2ok ? "✅" : "❌"} <b>${esc(p2Name)}</b> picked <b>${esc(b.p2_answer ?? "—")}</b>\n\n` +
+    `📊 <b>Score:</b> ${newP1} — ${newP2}`;
+  await tg("sendMessage", { chat_id: b.p1_chat, text: summary, parse_mode: "HTML" });
+  await tg("sendMessage", { chat_id: b.p2_chat, text: summary, parse_mode: "HTML" });
 
   const nextRound = b.round + 1;
   if (nextRound >= b.total_questions) {
