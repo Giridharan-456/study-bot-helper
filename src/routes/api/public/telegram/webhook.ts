@@ -521,9 +521,17 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             } else if (data === "menu:score") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               await sendScore(chatId);
+            } else if (data === "menu:leaderboard") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              await sendLeaderboard(chatId);
             } else if (data === "menu:mode") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               await sendModeMenu(chatId);
+            } else if (data.startsWith("quiz:")) {
+              const n = Number(data.split(":")[1]);
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              const st = await getState(chatId);
+              await startQuizSession(chatId, n, st?.mode ?? "button");
             } else if (data === "next:random") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
@@ -558,17 +566,53 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                   text: correct ? "✅ Correct!" : "❌ Wrong",
                   show_alert: false,
                 });
-                await tg("sendMessage", {
-                  chat_id: chatId,
-                  text:
-                    (correct ? "✅ *Correct!*" : `❌ *Wrong.* Answer: *${q.answer}* — ${correctText}`) +
-                    `\n\nScore: ${score.correct}/${score.total}`,
-                  parse_mode: "Markdown",
-                  reply_markup: quickMenu(),
-                });
-                // Auto-send the next question in the same subject/topic context.
+                // Edit the question message in place: append result, remove buttons.
+                const origText = cb.message?.text as string | undefined;
+                const resultLine =
+                  (correct
+                    ? `\n\n✅ *Correct!* (${q.answer})`
+                    : `\n\n❌ *Wrong.* Answer: *${q.answer}* — ${correctText}`) +
+                  `\n_Lifetime: ${score.correct}/${score.total}_`;
+                if (cb.message?.message_id && origText) {
+                  await tg("editMessageText", {
+                    chat_id: chatId,
+                    message_id: cb.message.message_id,
+                    text: origText + resultLine,
+                    parse_mode: "Markdown",
+                  });
+                }
+                // Quiz session bookkeeping
                 const st = await getState(chatId);
-                await sendQuestion(chatId, st?.subject ?? null, st?.topic ?? null, st?.mode ?? "button");
+                const inSession =
+                  st?.session_remaining != null && st.session_remaining > 0;
+                if (inSession) {
+                  const remaining = (st!.session_remaining as number) - 1;
+                  const sessCorrect =
+                    (st!.session_correct as number) + (correct ? 1 : 0);
+                  await setState(chatId, {
+                    session_remaining: remaining,
+                    session_correct: sessCorrect,
+                  });
+                  if (remaining <= 0) {
+                    await endQuizSession(
+                      chatId,
+                      st!.session_total as number,
+                      sessCorrect,
+                    );
+                    return;
+                  }
+                  await tg("sendMessage", {
+                    chat_id: chatId,
+                    text: `📊 Round: ${sessCorrect} correct • ${remaining} left`,
+                  });
+                }
+                // Auto-send the next question in the same subject/topic context.
+                await sendQuestion(
+                  chatId,
+                  st?.subject ?? null,
+                  st?.topic ?? null,
+                  st?.mode ?? "button",
+                );
               } else {
                 await tg("answerCallbackQuery", { callback_query_id: cb.id });
               }
