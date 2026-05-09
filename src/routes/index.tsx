@@ -5,7 +5,7 @@ import { useState } from "react";
 import { getInviteLink } from "@/lib/invite.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Copy, Check, ExternalLink, Bot, BookOpen, Send } from "lucide-react";
+import { Copy, Check, ExternalLink, Bot, BookOpen, Send, Share2 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -20,6 +20,7 @@ function Index() {
   
   const [copied, setCopied] = useState(false);
   const link = data?.url ?? "";
+  const botLink = "https://t.me/Studyictsm_bot";
 
   const handleCopy = async () => {
     if (!link) return;
@@ -28,9 +29,14 @@ function Index() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleShareTelegram = () => {
+    const text = encodeURIComponent("Join me on Study Bot to practice ICTSM & Employability MCQs!");
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(botLink)}&text=${text}`, "_blank");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
-      <main className="mx-auto max-w-3xl px-4 py-16 sm:px-6 sm:py-24 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <main className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-24 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className="flex flex-col items-center text-center mb-12">
           <div className="bg-primary/10 p-4 rounded-2xl mb-6 shadow-sm ring-1 ring-primary/20 hover:scale-105 transition-transform duration-300">
             <Bot className="w-16 h-16 text-primary" />
@@ -44,7 +50,7 @@ function Index() {
         </div>
 
         <div className="grid gap-8 md:grid-cols-2">
-          <Card className="border-border/50 shadow-md transition-all hover:shadow-lg bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+          <Card className="border-border/50 shadow-md transition-all hover:shadow-lg bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Send className="w-5 h-5 text-blue-500" />
@@ -54,7 +60,7 @@ function Index() {
                 Get your private invite link to launch the bot.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1">
               <div className="flex flex-col space-y-4">
                 <div className="flex items-center space-x-2 bg-muted/50 p-3 rounded-lg border border-border/50 overflow-hidden relative">
                   <span className="text-sm font-mono truncate flex-1 opacity-80">
@@ -63,7 +69,7 @@ function Index() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col sm:flex-row gap-3">
+            <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border/50">
               <Button 
                 variant="outline" 
                 className="w-full sm:w-auto transition-all active:scale-95 hover:bg-muted"
@@ -82,13 +88,20 @@ function Index() {
                 asChild
               >
                 <a href={link || "#"} target="_blank" rel="noreferrer">
-                  <ExternalLink className="w-4 h-4 mr-2" /> Launch in Telegram
+                  <ExternalLink className="w-4 h-4 mr-2" /> Launch
                 </a>
+              </Button>
+              <Button 
+                variant="secondary"
+                className="w-full sm:w-auto transition-all active:scale-95 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100"
+                onClick={handleShareTelegram}
+              >
+                <Share2 className="w-4 h-4 mr-2" /> Share
               </Button>
             </CardFooter>
           </Card>
 
-          <Card className="border-border/50 shadow-md transition-all hover:shadow-lg bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+          <Card className="border-border/50 shadow-md transition-all hover:shadow-lg bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-primary" />
@@ -98,7 +111,7 @@ function Index() {
                 640+ questions across 20 topics loaded.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1">
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
                   <code className="rounded-md bg-primary/10 text-primary font-bold px-2.5 py-1 text-xs">/start</code>
