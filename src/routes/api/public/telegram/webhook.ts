@@ -231,14 +231,10 @@ async function sendQuestion(
       is_anonymous: false,
     });
   } else {
-    const text =
-      `📚 *${q.subject}* — _${q.topic}_\n\n` +
-      `${q.question}\n\n` +
-      LETTERS.map((L, i) => `*${L}.* ${options[i]}`).join("\n");
     await tg("sendMessage", {
       chat_id: chatId,
-      text,
-      parse_mode: "Markdown",
+      text: formatQuestionCard(q.subject, q.topic, q.question, options),
+      parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
           LETTERS.map((L) => ({ text: L, callback_data: `ans:${q.id}:${L}` })),
