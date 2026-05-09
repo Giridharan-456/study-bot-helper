@@ -1,0 +1,44 @@
+name: Deploy Telegram Bot
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "supabase/functions/telegram-webhook/**"
+      - "supabase/config.toml"
+      - ".github/workflows/deploy-telegram-bot.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy Telegram webhook function
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test -n "$TELEGRAM_BOT_TOKEN"
+          supabase secrets set TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" --project-ref puhxzqifacaobtntbrgq
+          supabase functions deploy telegram-webhook --project-ref puhxzqifacaobtntbrgq --no-verify-jwt
+
+      - name: Point Telegram webhook to Supabase
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          WEBHOOK_URL="https://puhxzqifacaobtntbrgq.supabase.co/functions/v1/telegram-webhook"
+          SECRET_TOKEN=$(node -e "const crypto=require('crypto'); const key=process.env.TELEGRAM_BOT_TOKEN; console.log(crypto.createHash('sha256').update('telegram-webhook:' + key).digest('base64url'))")
+          curl --fail --show-error --silent \
+            --request POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+            --header 'Content-Type: application/json' \
+            --data "{\"url\":\"${WEBHOOK_URL}\",\"secret_token\":\"${SECRET_TOKEN}\",\"drop_pending_updates\":true}"
