@@ -823,8 +823,9 @@ function welcomeText() {
     "/quiz — start a 10/20/50-question round\n" +
     "/battle — challenge a friend (1v1)\n" +
     "/join CODE — join a friend's battle\n" +
+    "/review — re-do questions you got wrong\n" +
+    "/bookmarks — practice your saved questions\n" +
     "/leaderboard — top scorers\n" +
-    "/mode — switch between quiz polls or buttons\n" +
     "/score — your score\n" +
     "/reset — reset your score\n"
   );
