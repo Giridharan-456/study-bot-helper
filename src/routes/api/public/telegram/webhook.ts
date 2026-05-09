@@ -468,6 +468,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                     text:
                       "🎉 Access granted!\n\n" + welcomeText(),
                     parse_mode: "Markdown",
+                    reply_markup: persistentKeyboard(),
                   });
                   return Response.json({ ok: true });
                 }
