@@ -374,16 +374,122 @@ async function endQuizSession(chatId: number, total: number, correct: number) {
   });
 }
 
-async function sendModeMenu(chatId: number) {
+// ============================================================
+// Wrong-answer review + bookmarks
+// ============================================================
+
+async function addWrongAnswer(chatId: number, questionId: number) {
+  await supabaseAdmin.from("wrong_answers").upsert(
+    {
+      chat_id: chatId,
+      question_id: questionId,
+      wrong_count: 1,
+      last_wrong_at: new Date().toISOString(),
+    },
+    { onConflict: "chat_id,question_id", ignoreDuplicates: false },
+  );
+}
+
+async function removeWrongAnswer(chatId: number, questionId: number) {
+  await supabaseAdmin
+    .from("wrong_answers")
+    .delete()
+    .eq("chat_id", chatId)
+    .eq("question_id", questionId);
+}
+
+async function pickWrongAnswerQuestion(chatId: number) {
+  const { data } = await supabaseAdmin
+    .from("wrong_answers")
+    .select("question_id")
+    .eq("chat_id", chatId)
+    .order("last_wrong_at", { ascending: true })
+    .limit(50);
+  const ids = (data ?? []).map((r) => r.question_id as number);
+  if (!ids.length) return null;
+  const qid = ids[Math.floor(Math.random() * ids.length)];
+  const { data: q } = await supabaseAdmin
+    .from("questions")
+    .select("*")
+    .eq("id", qid)
+    .single();
+  return q;
+}
+
+async function isBookmarked(chatId: number, questionId: number) {
+  const { data } = await supabaseAdmin
+    .from("bookmarks")
+    .select("question_id")
+    .eq("chat_id", chatId)
+    .eq("question_id", questionId)
+    .maybeSingle();
+  return !!data;
+}
+
+async function toggleBookmark(chatId: number, questionId: number) {
+  if (await isBookmarked(chatId, questionId)) {
+    await supabaseAdmin
+      .from("bookmarks")
+      .delete()
+      .eq("chat_id", chatId)
+      .eq("question_id", questionId);
+    return false;
+  }
+  await supabaseAdmin
+    .from("bookmarks")
+    .insert({ chat_id: chatId, question_id: questionId });
+  return true;
+}
+
+async function pickBookmarkedQuestion(chatId: number) {
+  const { data } = await supabaseAdmin
+    .from("bookmarks")
+    .select("question_id")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  const ids = (data ?? []).map((r) => r.question_id as number);
+  if (!ids.length) return null;
+  const qid = ids[Math.floor(Math.random() * ids.length)];
+  const { data: q } = await supabaseAdmin
+    .from("questions")
+    .select("*")
+    .eq("id", qid)
+    .single();
+  return q;
+}
+
+async function sendSpecificQuestion(
+  chatId: number,
+  q: {
+    id: number;
+    subject: string;
+    topic: string;
+    question: string;
+    option_a: string;
+    option_b: string;
+    option_c: string;
+    option_d: string;
+    answer: string;
+  },
+  headerLabel?: string,
+) {
+  await setState(chatId, {
+    mode: "button",
+    subject: q.subject,
+    topic: q.topic,
+    current_question_id: q.id,
+  });
+  const options = [q.option_a, q.option_b, q.option_c, q.option_d];
+  const bookmarked = await isBookmarked(chatId, q.id);
   await tg("sendMessage", {
     chat_id: chatId,
-    text: "Choose your quiz mode:",
+    text: formatQuestionCard(q.subject, q.topic, q.question, options, headerLabel),
+    parse_mode: "HTML",
     reply_markup: {
       inline_keyboard: [
-        [
-          { text: "📊 Quiz Polls", callback_data: "mode:poll" },
-          { text: "🔘 Inline Buttons", callback_data: "mode:button" },
-        ],
+        LETTERS.map((L) => ({ text: L, callback_data: `ans:${q.id}:${L}` })),
+        [{ text: bookmarked ? "🔖 Bookmarked" : "🔖 Bookmark", callback_data: `bm:${q.id}` }],
       ],
     },
   });
