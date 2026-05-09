@@ -846,13 +846,6 @@ async function handleCommand(chatId: number, username: string | null, text: stri
         parse_mode: "Markdown",
         reply_markup: persistentKeyboard(),
       });
-      await tg("sendMessage", {
-        chat_id: chatId,
-        text: "Quick actions:"
-      });
-      return;
-    case "/mode":
-      await sendModeMenu(chatId);
       return;
     case "/topics":
       await sendTopicsMenu(chatId);
@@ -863,6 +856,35 @@ async function handleCommand(chatId: number, username: string | null, text: stri
     case "/battle":
       await sendBattleTopicMenu(chatId);
       return;
+    case "/review": {
+      const q = await pickWrongAnswerQuestion(chatId);
+      if (!q) {
+        await tg("sendMessage", {
+          chat_id: chatId,
+          text:
+            "🎉 Nothing to review! You haven't gotten any questions wrong yet.\n\n" +
+            "Try /random or /quiz to practice more.",
+        });
+        return;
+      }
+      await sendSpecificQuestion(chatId, q, "🔁 Review · question you got wrong");
+      return;
+    }
+    case "/bookmarks": {
+      const q = await pickBookmarkedQuestion(chatId);
+      if (!q) {
+        await tg("sendMessage", {
+          chat_id: chatId,
+          text:
+            "🔖 No bookmarks yet.\n\n" +
+            "Tap <b>🔖 Bookmark</b> below any question to save it for later.",
+          parse_mode: "HTML",
+        });
+        return;
+      }
+      await sendSpecificQuestion(chatId, q, "🔖 From your bookmarks");
+      return;
+    }
     case "/join": {
       const code = text.match(/\/join\s+(\S+)/i)?.[1];
       if (!code) {
