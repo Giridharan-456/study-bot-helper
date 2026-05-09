@@ -1058,18 +1058,17 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                     );
                     return;
                   }
-                  await tg("sendMessage", {
-                    chat_id: chatId,
-                    text: `📊 Round: ${sessCorrect} correct • ${remaining} left`,
-                  });
+                  // In an active quiz session, auto-advance to next question.
+                  await sendQuestion(
+                    chatId,
+                    st?.subject ?? null,
+                    st?.topic ?? null,
+                    st?.mode ?? "button",
+                  );
+                  return;
                 }
-                // Auto-send the next question in the same subject/topic context.
-                await sendQuestion(
-                  chatId,
-                  st?.subject ?? null,
-                  st?.topic ?? null,
-                  st?.mode ?? "button",
-                );
+                // Outside a quiz session: stop here. User can tap the menu
+                // (/random, /topics, etc.) to request the next question.
               } else {
                 await tg("answerCallbackQuery", { callback_query_id: cb.id });
               }
