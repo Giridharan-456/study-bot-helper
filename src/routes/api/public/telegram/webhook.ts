@@ -1022,16 +1022,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
           if (cb?.data && cb.message?.chat?.id) {
             const data = cb.data as string;
 
-            if (data.startsWith("mode:")) {
-              const newMode = data.split(":")[1];
-              await setState(chatId, { mode: newMode });
-              await tg("answerCallbackQuery", { callback_query_id: cb.id, text: `Mode: ${newMode}` });
-              await tg("sendMessage", {
-                chat_id: chatId,
-                text: `✅ Mode set to *${newMode === "poll" ? "Quiz Polls" : "Inline Buttons"}*. Try /random.`,
-                parse_mode: "Markdown"
-              });
-            } else if (data === "menu:topics") {
+            if (data === "menu:topics") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               await sendTopicsMenu(chatId);
             } else if (data === "menu:score") {
@@ -1040,9 +1031,29 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             } else if (data === "menu:leaderboard") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               await sendLeaderboard(chatId);
-            } else if (data === "menu:mode") {
-              await tg("answerCallbackQuery", { callback_query_id: cb.id });
-              await sendModeMenu(chatId);
+            } else if (data.startsWith("bm:")) {
+              const qid = Number(data.slice(3));
+              const nowOn = await toggleBookmark(chatId, qid);
+              await tg("answerCallbackQuery", {
+                callback_query_id: cb.id,
+                text: nowOn ? "🔖 Bookmarked" : "Bookmark removed",
+              });
+              // Update only the bookmark button label
+              if (cb.message?.message_id && cb.message?.reply_markup) {
+                const kb = (cb.message.reply_markup as { inline_keyboard?: unknown[][] }).inline_keyboard ?? [];
+                const newKb = kb.map((row) =>
+                  (row as Array<{ text: string; callback_data: string }>).map((btn) =>
+                    btn.callback_data === data
+                      ? { ...btn, text: nowOn ? "🔖 Bookmarked" : "🔖 Bookmark" }
+                      : btn,
+                  ),
+                );
+                await tg("editMessageReplyMarkup", {
+                  chat_id: chatId,
+                  message_id: cb.message.message_id,
+                  reply_markup: { inline_keyboard: newKb },
+                });
+              }
             } else if (data.startsWith("quiz:")) {
               const n = Number(data.split(":")[1]);
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
