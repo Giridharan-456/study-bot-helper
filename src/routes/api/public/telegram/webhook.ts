@@ -125,6 +125,14 @@ function quickMenu() {
   return {
     inline_keyboard: [
       [
+        { text: "Next random", callback_data: "next:random" },
+        { text: "Topics", callback_data: "menu:topics" },
+      ],
+      [
+        { text: "ICTSM", callback_data: "subj:ICTSM" },
+        { text: "Employability", callback_data: "subj:Employability" },
+      ],
+      [
         { text: "Score", callback_data: "menu:score" },
         { text: "Leaderboard", callback_data: "menu:leaderboard" },
       ],
@@ -282,7 +290,7 @@ async function sendStudyPlan(chatId: number) {
   await tg("sendMessage", {
     chat_id: chatId,
     text:
-      "*Today\'s 15 minute plan*\n\n" +
+      "*Today plan: 15 minutes*\n\n" +
       "1. Warm up with /random for 5 questions.\n" +
       "2. Open /topics and drill one weak topic.\n" +
       "3. Check /progress, then repeat missed areas.\n\n" +
