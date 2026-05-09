@@ -1,424 +1,416 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
+    PostgrestVersion: "14.5";
+  };
   public: {
     Tables: {
       battles: {
         Row: {
-          code: string
-          created_at: string
-          current_question_id: number | null
-          p1_answer: string | null
-          p1_chat: number
-          p1_message_id: number | null
-          p1_score: number
-          p1_username: string | null
-          p2_answer: string | null
-          p2_chat: number | null
-          p2_message_id: number | null
-          p2_score: number
-          p2_username: string | null
-          round: number
-          status: string
-          subject: string | null
-          topic: string | null
-          total_questions: number
-          updated_at: string
-        }
+          code: string;
+          created_at: string;
+          current_question_id: number | null;
+          p1_answer: string | null;
+          p1_chat: number;
+          p1_message_id: number | null;
+          p1_score: number;
+          p1_username: string | null;
+          p2_answer: string | null;
+          p2_chat: number | null;
+          p2_message_id: number | null;
+          p2_score: number;
+          p2_username: string | null;
+          round: number;
+          status: string;
+          subject: string | null;
+          topic: string | null;
+          total_questions: number;
+          updated_at: string;
+        };
         Insert: {
-          code: string
-          created_at?: string
-          current_question_id?: number | null
-          p1_answer?: string | null
-          p1_chat: number
-          p1_message_id?: number | null
-          p1_score?: number
-          p1_username?: string | null
-          p2_answer?: string | null
-          p2_chat?: number | null
-          p2_message_id?: number | null
-          p2_score?: number
-          p2_username?: string | null
-          round?: number
-          status?: string
-          subject?: string | null
-          topic?: string | null
-          total_questions?: number
-          updated_at?: string
-        }
+          code: string;
+          created_at?: string;
+          current_question_id?: number | null;
+          p1_answer?: string | null;
+          p1_chat: number;
+          p1_message_id?: number | null;
+          p1_score?: number;
+          p1_username?: string | null;
+          p2_answer?: string | null;
+          p2_chat?: number | null;
+          p2_message_id?: number | null;
+          p2_score?: number;
+          p2_username?: string | null;
+          round?: number;
+          status?: string;
+          subject?: string | null;
+          topic?: string | null;
+          total_questions?: number;
+          updated_at?: string;
+        };
         Update: {
-          code?: string
-          created_at?: string
-          current_question_id?: number | null
-          p1_answer?: string | null
-          p1_chat?: number
-          p1_message_id?: number | null
-          p1_score?: number
-          p1_username?: string | null
-          p2_answer?: string | null
-          p2_chat?: number | null
-          p2_message_id?: number | null
-          p2_score?: number
-          p2_username?: string | null
-          round?: number
-          status?: string
-          subject?: string | null
-          topic?: string | null
-          total_questions?: number
-          updated_at?: string
-        }
+          code?: string;
+          created_at?: string;
+          current_question_id?: number | null;
+          p1_answer?: string | null;
+          p1_chat?: number;
+          p1_message_id?: number | null;
+          p1_score?: number;
+          p1_username?: string | null;
+          p2_answer?: string | null;
+          p2_chat?: number | null;
+          p2_message_id?: number | null;
+          p2_score?: number;
+          p2_username?: string | null;
+          round?: number;
+          status?: string;
+          subject?: string | null;
+          topic?: string | null;
+          total_questions?: number;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "battles_current_question_id_fkey"
-            columns: ["current_question_id"]
-            isOneToOne: false
-            referencedRelation: "questions"
-            referencedColumns: ["id"]
+            foreignKeyName: "battles_current_question_id_fkey";
+            columns: ["current_question_id"];
+            isOneToOne: false;
+            referencedRelation: "questions";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       bookmarks: {
         Row: {
-          chat_id: number
-          created_at: string
-          question_id: number
-        }
+          chat_id: number;
+          created_at: string;
+          question_id: number;
+        };
         Insert: {
-          chat_id: number
-          created_at?: string
-          question_id: number
-        }
+          chat_id: number;
+          created_at?: string;
+          question_id: number;
+        };
         Update: {
-          chat_id?: number
-          created_at?: string
-          question_id?: number
-        }
-        Relationships: []
-      }
+          chat_id?: number;
+          created_at?: string;
+          question_id?: number;
+        };
+        Relationships: [];
+      };
       bot_users: {
         Row: {
-          chat_id: number
-          invite_code: string | null
-          joined_at: string
-          username: string | null
-        }
+          chat_id: number;
+          invite_code: string | null;
+          joined_at: string;
+          username: string | null;
+        };
         Insert: {
-          chat_id: number
-          invite_code?: string | null
-          joined_at?: string
-          username?: string | null
-        }
+          chat_id: number;
+          invite_code?: string | null;
+          joined_at?: string;
+          username?: string | null;
+        };
         Update: {
-          chat_id?: number
-          invite_code?: string | null
-          joined_at?: string
-          username?: string | null
-        }
+          chat_id?: number;
+          invite_code?: string | null;
+          joined_at?: string;
+          username?: string | null;
+        };
         Relationships: [
           {
-            foreignKeyName: "bot_users_invite_code_fkey"
-            columns: ["invite_code"]
-            isOneToOne: false
-            referencedRelation: "invites"
-            referencedColumns: ["code"]
+            foreignKeyName: "bot_users_invite_code_fkey";
+            columns: ["invite_code"];
+            isOneToOne: false;
+            referencedRelation: "invites";
+            referencedColumns: ["code"];
           },
-        ]
-      }
+        ];
+      };
       invites: {
         Row: {
-          code: string
-          created_at: string
-          label: string | null
-          uses: number
-        }
+          code: string;
+          created_at: string;
+          label: string | null;
+          uses: number;
+        };
         Insert: {
-          code: string
-          created_at?: string
-          label?: string | null
-          uses?: number
-        }
+          code: string;
+          created_at?: string;
+          label?: string | null;
+          uses?: number;
+        };
         Update: {
-          code?: string
-          created_at?: string
-          label?: string | null
-          uses?: number
-        }
-        Relationships: []
-      }
+          code?: string;
+          created_at?: string;
+          label?: string | null;
+          uses?: number;
+        };
+        Relationships: [];
+      };
       questions: {
         Row: {
-          answer: string
-          created_at: string
-          id: number
-          option_a: string
-          option_b: string
-          option_c: string
-          option_d: string
-          question: string
-          subject: string
-          topic: string
-        }
+          answer: string;
+          created_at: string;
+          id: number;
+          option_a: string;
+          option_b: string;
+          option_c: string;
+          option_d: string;
+          question: string;
+          subject: string;
+          topic: string;
+        };
         Insert: {
-          answer: string
-          created_at?: string
-          id?: number
-          option_a: string
-          option_b: string
-          option_c: string
-          option_d: string
-          question: string
-          subject: string
-          topic: string
-        }
+          answer: string;
+          created_at?: string;
+          id?: number;
+          option_a: string;
+          option_b: string;
+          option_c: string;
+          option_d: string;
+          question: string;
+          subject: string;
+          topic: string;
+        };
         Update: {
-          answer?: string
-          created_at?: string
-          id?: number
-          option_a?: string
-          option_b?: string
-          option_c?: string
-          option_d?: string
-          question?: string
-          subject?: string
-          topic?: string
-        }
-        Relationships: []
-      }
+          answer?: string;
+          created_at?: string;
+          id?: number;
+          option_a?: string;
+          option_b?: string;
+          option_c?: string;
+          option_d?: string;
+          question?: string;
+          subject?: string;
+          topic?: string;
+        };
+        Relationships: [];
+      };
       user_scores: {
         Row: {
-          chat_id: number
-          correct: number
-          total: number
-          updated_at: string
-          username: string | null
-        }
+          chat_id: number;
+          correct: number;
+          total: number;
+          updated_at: string;
+          username: string | null;
+        };
         Insert: {
-          chat_id: number
-          correct?: number
-          total?: number
-          updated_at?: string
-          username?: string | null
-        }
+          chat_id: number;
+          correct?: number;
+          total?: number;
+          updated_at?: string;
+          username?: string | null;
+        };
         Update: {
-          chat_id?: number
-          correct?: number
-          total?: number
-          updated_at?: string
-          username?: string | null
-        }
-        Relationships: []
-      }
+          chat_id?: number;
+          correct?: number;
+          total?: number;
+          updated_at?: string;
+          username?: string | null;
+        };
+        Relationships: [];
+      };
       user_state: {
         Row: {
-          chat_id: number
-          current_question_id: number | null
-          mode: string
-          session_correct: number | null
-          session_remaining: number | null
-          session_total: number | null
-          subject: string | null
-          topic: string | null
-          updated_at: string
-        }
+          chat_id: number;
+          current_question_id: number | null;
+          mode: string;
+          session_correct: number | null;
+          session_remaining: number | null;
+          session_total: number | null;
+          subject: string | null;
+          topic: string | null;
+          updated_at: string;
+        };
         Insert: {
-          chat_id: number
-          current_question_id?: number | null
-          mode?: string
-          session_correct?: number | null
-          session_remaining?: number | null
-          session_total?: number | null
-          subject?: string | null
-          topic?: string | null
-          updated_at?: string
-        }
+          chat_id: number;
+          current_question_id?: number | null;
+          mode?: string;
+          session_correct?: number | null;
+          session_remaining?: number | null;
+          session_total?: number | null;
+          subject?: string | null;
+          topic?: string | null;
+          updated_at?: string;
+        };
         Update: {
-          chat_id?: number
-          current_question_id?: number | null
-          mode?: string
-          session_correct?: number | null
-          session_remaining?: number | null
-          session_total?: number | null
-          subject?: string | null
-          topic?: string | null
-          updated_at?: string
-        }
+          chat_id?: number;
+          current_question_id?: number | null;
+          mode?: string;
+          session_correct?: number | null;
+          session_remaining?: number | null;
+          session_total?: number | null;
+          subject?: string | null;
+          topic?: string | null;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "user_state_current_question_id_fkey"
-            columns: ["current_question_id"]
-            isOneToOne: false
-            referencedRelation: "questions"
-            referencedColumns: ["id"]
+            foreignKeyName: "user_state_current_question_id_fkey";
+            columns: ["current_question_id"];
+            isOneToOne: false;
+            referencedRelation: "questions";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       wrong_answers: {
         Row: {
-          chat_id: number
-          last_wrong_at: string
-          question_id: number
-          wrong_count: number
-        }
+          chat_id: number;
+          last_wrong_at: string;
+          question_id: number;
+          wrong_count: number;
+        };
         Insert: {
-          chat_id: number
-          last_wrong_at?: string
-          question_id: number
-          wrong_count?: number
-        }
+          chat_id: number;
+          last_wrong_at?: string;
+          question_id: number;
+          wrong_count?: number;
+        };
         Update: {
-          chat_id?: number
-          last_wrong_at?: string
-          question_id?: number
-          wrong_count?: number
-        }
-        Relationships: []
-      }
-    }
+          chat_id?: number;
+          last_wrong_at?: string;
+          question_id?: number;
+          wrong_count?: number;
+        };
+        Relationships: [];
+      };
+    };
     Views: {
-      [_ in never]: never
-    }
+      [_ in never]: never;
+    };
     Functions: {
-      [_ in never]: never
-    }
+      [_ in never]: never;
+    };
     Enums: {
-      [_ in never]: never
-    }
+      [_ in never]: never;
+    };
     CompositeTypes: {
-      [_ in never]: never
-    }
-  }
-}
+      [_ in never]: never;
+    };
+  };
+};
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">];
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
+      Row: infer R;
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R;
       }
       ? R
       : never
-    : never
+    : never;
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
+      Insert: infer I;
     }
     ? I
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
+        Insert: infer I;
       }
       ? I
       : never
-    : never
+    : never;
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
+      Update: infer U;
     }
     ? U
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
+        Update: infer U;
       }
       ? U
       : never
-    : never
+    : never;
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+    : never;
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+    : never;
 
 export const Constants = {
   public: {
     Enums: {},
   },
-} as const
+} as const;

@@ -70,9 +70,7 @@ async function tryRedeemInvite(chatId: number, username: string | null, code: st
     .eq("code", code)
     .maybeSingle();
   if (!invite) return false;
-  await supabaseAdmin
-    .from("bot_users")
-    .upsert({ chat_id: chatId, username, invite_code: code });
+  await supabaseAdmin.from("bot_users").upsert({ chat_id: chatId, username, invite_code: code });
   await supabaseAdmin
     .from("invites")
     .update({ uses: (invite.uses ?? 0) + 1 })
@@ -95,7 +93,12 @@ async function setState(chatId: number, patch: Record<string, unknown>) {
     .upsert({ chat_id: chatId, ...patch, updated_at: new Date().toISOString() });
 }
 
-async function bumpScore(chatId: number, username: string | null, correct: boolean) {
+async function bumpScore(
+  chatId: number,
+  username: string | null,
+  correct: boolean,
+  questionId?: number,
+) {
   const { data } = await supabaseAdmin
     .from("user_scores")
     .select("total,correct")
@@ -103,10 +106,57 @@ async function bumpScore(chatId: number, username: string | null, correct: boole
     .maybeSingle();
   const total = (data?.total ?? 0) + 1;
   const ok = (data?.correct ?? 0) + (correct ? 1 : 0);
-  await supabaseAdmin
-    .from("user_scores")
-    .upsert({ chat_id: chatId, username, total, correct: ok, updated_at: new Date().toISOString() });
+  await supabaseAdmin.from("user_scores").upsert({
+    chat_id: chatId,
+    username,
+    total,
+    correct: ok,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (!correct && questionId) {
+    await trackWrongAnswer(chatId, questionId);
+  }
+
   return { total, correct: ok };
+}
+
+async function trackWrongAnswer(chatId: number, questionId: number) {
+  const { data } = await supabaseAdmin
+    .from("wrong_answers")
+    .select("wrong_count")
+    .eq("chat_id", chatId)
+    .eq("question_id", questionId)
+    .maybeSingle();
+
+  const count = (data?.wrong_count ?? 0) + 1;
+  await supabaseAdmin.from("wrong_answers").upsert({
+    chat_id: chatId,
+    question_id: questionId,
+    wrong_count: count,
+    last_wrong_at: new Date().toISOString(),
+  });
+}
+
+async function toggleBookmark(chatId: number, questionId: number) {
+  const { data } = await supabaseAdmin
+    .from("bookmarks")
+    .select("*")
+    .eq("chat_id", chatId)
+    .eq("question_id", questionId)
+    .maybeSingle();
+
+  if (data) {
+    await supabaseAdmin
+      .from("bookmarks")
+      .delete()
+      .eq("chat_id", chatId)
+      .eq("question_id", questionId);
+    return false;
+  } else {
+    await supabaseAdmin.from("bookmarks").insert({ chat_id: chatId, question_id: questionId });
+    return true;
+  }
 }
 
 async function pickQuestion(subject: string | null, topic: string | null) {
@@ -117,6 +167,30 @@ async function pickQuestion(subject: string | null, topic: string | null) {
   const ids = (idsRes.data ?? []) as { id: number }[];
   if (!ids.length) return null;
   const pick = ids[Math.floor(Math.random() * ids.length)].id;
+  const { data } = await supabaseAdmin.from("questions").select("*").eq("id", pick).single();
+  return data;
+}
+
+async function pickBookmarkedQuestion(chatId: number) {
+  const { data: bms } = await supabaseAdmin
+    .from("bookmarks")
+    .select("question_id")
+    .eq("chat_id", chatId);
+
+  if (!bms || bms.length === 0) return null;
+  const pick = bms[Math.floor(Math.random() * bms.length)].question_id;
+  const { data } = await supabaseAdmin.from("questions").select("*").eq("id", pick).single();
+  return data;
+}
+
+async function pickWrongQuestion(chatId: number) {
+  const { data: wrs } = await supabaseAdmin
+    .from("wrong_answers")
+    .select("question_id")
+    .eq("chat_id", chatId);
+
+  if (!wrs || wrs.length === 0) return null;
+  const pick = wrs[Math.floor(Math.random() * wrs.length)].question_id;
   const { data } = await supabaseAdmin.from("questions").select("*").eq("id", pick).single();
   return data;
 }
@@ -133,9 +207,14 @@ function quickMenu() {
         { text: "💼 Employability", callback_data: "subj:Employability" },
       ],
       [
-        { text: "📈 Score", callback_data: "menu:score" },
-        { text: "⚙️ Mode", callback_data: "menu:mode" },
+        { text: "⭐ Bookmarks", callback_data: "menu:bookmarks" },
+        { text: "🔄 Review", callback_data: "menu:review" },
       ],
+      [
+        { text: "📈 Score", callback_data: "menu:score" },
+        { text: "🏆 Top Students", callback_data: "menu:top" },
+      ],
+      [{ text: "⚙️ Mode", callback_data: "menu:mode" }],
     ],
   };
 }
@@ -145,19 +224,44 @@ async function sendQuestion(
   subject: string | null,
   topic: string | null,
   mode: string,
+  specialMode?: "bookmarks" | "review",
 ) {
-  const q = await pickQuestion(subject, topic);
+  let q;
+  if (specialMode === "bookmarks") {
+    q = await pickBookmarkedQuestion(chatId);
+    if (!q) {
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text: "No bookmarked questions yet! Tap ⭐ on any question to bookmark it.",
+      });
+      return;
+    }
+  } else if (specialMode === "review") {
+    q = await pickWrongQuestion(chatId);
+    if (!q) {
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text: "No wrong answers to review yet! Practice more to track your progress.",
+      });
+      return;
+    }
+  } else {
+    q = await pickQuestion(subject, topic);
+  }
+
   if (!q) {
     await tg("sendMessage", { chat_id: chatId, text: "No questions found." });
     return;
   }
-  await setState(chatId, { mode, subject, topic, current_question_id: q.id });
+
+  // Track special mode in user state if needed, or just regular context
+  const stateSubject = specialMode ? `__${specialMode}__` : subject;
+  await setState(chatId, { mode, subject: stateSubject, topic, current_question_id: q.id });
 
   const correctIdx = LETTERS.indexOf(q.answer.toUpperCase() as (typeof LETTERS)[number]);
   const options = [q.option_a, q.option_b, q.option_c, q.option_d];
 
   if (mode === "poll") {
-    // Telegram quiz polls require option text <= 100 chars and question <= 300 chars
     const safeQ = q.question.length > 290 ? q.question.slice(0, 287) + "..." : q.question;
     const safeOpts = options.map((o) => (o.length > 95 ? o.slice(0, 92) + "..." : o));
     await tg("sendPoll", {
@@ -173,6 +277,14 @@ async function sendQuestion(
       `📚 *${q.subject}* — _${q.topic}_\n\n` +
       `${q.question}\n\n` +
       LETTERS.map((L, i) => `*${L}.* ${options[i]}`).join("\n");
+
+    const { data: isBookmarked } = await supabaseAdmin
+      .from("bookmarks")
+      .select("*")
+      .eq("chat_id", chatId)
+      .eq("question_id", q.id)
+      .maybeSingle();
+
     await tg("sendMessage", {
       chat_id: chatId,
       text,
@@ -180,6 +292,12 @@ async function sendQuestion(
       reply_markup: {
         inline_keyboard: [
           LETTERS.map((L) => ({ text: L, callback_data: `ans:${q.id}:${L}` })),
+          [
+            {
+              text: isBookmarked ? "⭐ Bookmarked" : "☆ Bookmark",
+              callback_data: `bookmark:${q.id}`,
+            },
+          ],
         ],
       },
     });
@@ -203,7 +321,10 @@ async function sendTopicsMenu(chatId: number, subject?: string) {
     a.subject === b.subject ? a.topic.localeCompare(b.topic) : a.subject.localeCompare(b.subject),
   );
   const rows = topics.map((t) => [
-    { text: `${t.subject === "ICTSM" ? "📚" : "💼"} ${t.topic}`, callback_data: `topic:${t.subject}:${t.topic}` },
+    {
+      text: `${t.subject === "ICTSM" ? "📚" : "💼"} ${t.topic}`,
+      callback_data: `topic:${t.subject}:${t.topic}`,
+    },
   ]);
   await tg("sendMessage", {
     chat_id: chatId,
@@ -225,6 +346,33 @@ async function sendScore(chatId: number) {
   await tg("sendMessage", {
     chat_id: chatId,
     text: `📈 *Your score*\n\nCorrect: *${correct}* / ${total}\nAccuracy: *${pct}%*`,
+    parse_mode: "Markdown",
+    reply_markup: quickMenu(),
+  });
+}
+
+async function sendLeaderboard(chatId: number) {
+  const { data } = await supabaseAdmin
+    .from("user_scores")
+    .select("username,correct,total")
+    .order("correct", { ascending: false })
+    .limit(10);
+
+  if (!data || data.length === 0) {
+    await tg("sendMessage", { chat_id: chatId, text: "Leaderboard is empty." });
+    return;
+  }
+
+  let text = "🏆 *Top Students*\n\n";
+  data.forEach((u, i) => {
+    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`;
+    const user = u.username || "Anonymous";
+    text += `${medal} *${user}*: ${u.correct} correct (${u.total} total)\n`;
+  });
+
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text,
     parse_mode: "Markdown",
     reply_markup: quickMenu(),
   });
@@ -253,7 +401,10 @@ function welcomeText() {
     "/ictsm — random ICTSM question\n" +
     "/employability — random Employability question\n" +
     "/random — random from any subject\n" +
-    "/topics — browse 20 topics\n" +
+    "/topics — browse all topics\n" +
+    "/bookmarks — practice your starred questions\n" +
+    "/review — practice questions you got wrong\n" +
+    "/top — leaderboard\n" +
     "/mode — switch between quiz polls or buttons\n" +
     "/score — your score\n" +
     "/reset — reset your score\n"
@@ -281,6 +432,15 @@ async function handleCommand(chatId: number, username: string | null, text: stri
     case "/topics":
       await sendTopicsMenu(chatId);
       return;
+    case "/bookmarks":
+      await sendQuestion(chatId, null, null, mode, "bookmarks");
+      return;
+    case "/review":
+      await sendQuestion(chatId, null, null, mode, "review");
+      return;
+    case "/top":
+      await sendLeaderboard(chatId);
+      return;
     case "/ictsm":
       await sendQuestion(chatId, "ICTSM", null, mode);
       return;
@@ -295,9 +455,13 @@ async function handleCommand(chatId: number, username: string | null, text: stri
       return;
     }
     case "/reset":
-      await supabaseAdmin
-        .from("user_scores")
-        .upsert({ chat_id: chatId, username, total: 0, correct: 0, updated_at: new Date().toISOString() });
+      await supabaseAdmin.from("user_scores").upsert({
+        chat_id: chatId,
+        username,
+        total: 0,
+        correct: 0,
+        updated_at: new Date().toISOString(),
+      });
       await tg("sendMessage", { chat_id: chatId, text: "✅ Score reset." });
       return;
     default:
@@ -330,8 +494,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
           const cb = update.callback_query;
 
           // Resolve chat + username for gating
-          const chatId: number | undefined =
-            msg?.chat?.id ?? cb?.message?.chat?.id;
+          const chatId: number | undefined = msg?.chat?.id ?? cb?.message?.chat?.id;
           const username: string | null =
             msg?.from?.username ??
             msg?.from?.first_name ??
@@ -352,8 +515,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                 if (ok) {
                   await tg("sendMessage", {
                     chat_id: chatId,
-                    text:
-                      "🎉 Access granted!\n\n" + welcomeText(),
+                    text: "🎉 Access granted!\n\n" + welcomeText(),
                     parse_mode: "Markdown",
                   });
                   return Response.json({ ok: true });
@@ -402,7 +564,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                   text: `✅ Mode set to *${newMode === "poll" ? "Quiz Polls" : "Inline Buttons"}*. Try /random.`,
                   parse_mode: "Markdown",
                   reply_markup: quickMenu(),
-                })
+                }),
               ]);
             } else if (data === "menu:topics") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
@@ -413,10 +575,29 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             } else if (data === "menu:mode") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               await sendModeMenu(chatId);
+            } else if (data === "menu:top") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              await sendLeaderboard(chatId);
+            } else if (data === "menu:bookmarks") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              const st = await getState(chatId);
+              await sendQuestion(chatId, null, null, st?.mode ?? "poll", "bookmarks");
+            } else if (data === "menu:review") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              const st = await getState(chatId);
+              await sendQuestion(chatId, null, null, st?.mode ?? "poll", "review");
             } else if (data === "next:random") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
               await sendQuestion(chatId, null, null, st?.mode ?? "poll");
+            } else if (data === "next:bookmarks") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              const st = await getState(chatId);
+              await sendQuestion(chatId, null, null, st?.mode ?? "poll", "bookmarks");
+            } else if (data === "next:review") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              const st = await getState(chatId);
+              await sendQuestion(chatId, null, null, st?.mode ?? "poll", "review");
             } else if (data.startsWith("subj:")) {
               const subj = data.slice("subj:".length);
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
@@ -429,6 +610,44 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
               await sendQuestion(chatId, subj, topic, st?.mode ?? "poll");
+            } else if (data.startsWith("bookmark:")) {
+              const qid = Number(data.split(":")[1]);
+              const added = await toggleBookmark(chatId, qid);
+              await tg("answerCallbackQuery", {
+                callback_query_id: cb.id,
+                text: added ? "⭐ Added to bookmarks" : "❌ Removed from bookmarks",
+              });
+              // Update the message to reflect bookmark status
+              const { data: q } = await supabaseAdmin
+                .from("questions")
+                .select("*")
+                .eq("id", qid)
+                .single();
+              if (q) {
+                const options = [q.option_a, q.option_b, q.option_c, q.option_d];
+                const text =
+                  `📚 *${q.subject}* — _${q.topic}_\n\n` +
+                  `${q.question}\n\n` +
+                  LETTERS.map((L, i) => `*${L}.* ${options[i]}`).join("\n");
+
+                await tg("editMessageText", {
+                  chat_id: chatId,
+                  message_id: cb.message.message_id,
+                  text,
+                  parse_mode: "Markdown",
+                  reply_markup: {
+                    inline_keyboard: [
+                      LETTERS.map((L) => ({ text: L, callback_data: `ans:${q.id}:${L}` })),
+                      [
+                        {
+                          text: added ? "⭐ Bookmarked" : "☆ Bookmark",
+                          callback_data: `bookmark:${q.id}`,
+                        },
+                      ],
+                    ],
+                  },
+                });
+              }
             } else if (data.startsWith("ans:")) {
               const [, qidStr, letter] = data.split(":");
               const qid = Number(qidStr);
@@ -440,27 +659,60 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               if (q) {
                 const correct = letter.toUpperCase() === q.answer.toUpperCase();
                 const opts = [q.option_a, q.option_b, q.option_c, q.option_d];
-                const correctText = opts[LETTERS.indexOf(q.answer.toUpperCase() as (typeof LETTERS)[number])];
-                const score = await bumpScore(chatId, username, correct);
+                const correctText =
+                  opts[LETTERS.indexOf(q.answer.toUpperCase() as (typeof LETTERS)[number])];
+                const score = await bumpScore(chatId, username, correct, qid);
                 await tg("answerCallbackQuery", {
                   callback_query_id: cb.id,
                   text: correct ? "✅ Correct!" : "❌ Wrong",
                   show_alert: false,
                 });
+
+                const st = await getState(chatId);
+                let nextCallback = "next:random";
+                let nextLabel = "🎲 Next random";
+
+                if (st?.subject === "__bookmarks__") {
+                  nextCallback = "next:bookmarks";
+                  nextLabel = "🎲 Next bookmark";
+                } else if (st?.subject === "__review__") {
+                  nextCallback = "next:review";
+                  nextLabel = "🎲 Next review";
+                } else if (st?.topic) {
+                  nextCallback = `topic:${st.subject}:${st.topic}`;
+                  nextLabel = `🎲 Next in ${st.topic}`;
+                } else if (st?.subject && !st.subject.startsWith("__")) {
+                  nextCallback = `subj:${st.subject}`;
+                  nextLabel = `🎲 Next in ${st.subject}`;
+                }
+
                 await tg("sendMessage", {
                   chat_id: chatId,
                   text:
-                    (correct ? "✅ *Correct!*" : `❌ *Wrong.* Answer: *${q.answer}* — ${correctText}`) +
+                    (correct
+                      ? "✅ *Correct!*"
+                      : `❌ *Wrong.* Answer: *${q.answer}* — ${correctText}`) +
                     `\n\nScore: ${score.correct}/${score.total}`,
                   parse_mode: "Markdown",
-                  reply_markup: quickMenu(),
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        { text: nextLabel, callback_data: nextCallback },
+                        { text: "🏠 Menu", callback_data: "menu:main" },
+                      ],
+                    ],
+                  },
                 });
-                // Auto-send the next question in the same subject/topic context.
-                const st = await getState(chatId);
-                await sendQuestion(chatId, st?.subject ?? null, st?.topic ?? null, st?.mode ?? "button");
               } else {
                 await tg("answerCallbackQuery", { callback_query_id: cb.id });
               }
+            } else if (data === "menu:main") {
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              await tg("sendMessage", {
+                chat_id: chatId,
+                text: "Main Menu",
+                reply_markup: quickMenu(),
+              });
             } else {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
             }
@@ -469,9 +721,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
           // Quiz poll answers (poll mode score tracking)
           const pa = update.poll_answer;
           if (pa) {
-            // We don't know the correct answer from the poll_answer payload alone.
-            // Track only that the user answered. For accurate correct/incorrect,
-            // user can use button mode. Skip score increment in poll mode.
+            // In poll mode we don't easily know if it was correct here without more state.
           }
         } catch (err) {
           console.error("webhook handler error", err);

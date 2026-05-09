@@ -76,16 +76,27 @@ function admin() {
 }
 
 async function isAllowed(chatId: number) {
-  const { data } = await admin().from("bot_users").select("chat_id").eq("chat_id", chatId).maybeSingle();
+  const { data } = await admin()
+    .from("bot_users")
+    .select("chat_id")
+    .eq("chat_id", chatId)
+    .maybeSingle();
   return !!data;
 }
 
 async function tryRedeemInvite(chatId: number, username: string | null, code: string) {
   const db = admin();
-  const { data: invite } = await db.from("invites").select("code,uses").eq("code", code).maybeSingle();
+  const { data: invite } = await db
+    .from("invites")
+    .select("code,uses")
+    .eq("code", code)
+    .maybeSingle();
   if (!invite) return false;
   await db.from("bot_users").upsert({ chat_id: chatId, username, invite_code: code });
-  await db.from("invites").update({ uses: (invite.uses ?? 0) + 1 }).eq("code", code);
+  await db
+    .from("invites")
+    .update({ uses: (invite.uses ?? 0) + 1 })
+    .eq("code", code);
   return true;
 }
 
@@ -95,15 +106,27 @@ async function getState(chatId: number) {
 }
 
 async function setState(chatId: number, patch: Record<string, unknown>) {
-  await admin().from("user_state").upsert({ chat_id: chatId, ...patch, updated_at: new Date().toISOString() });
+  await admin()
+    .from("user_state")
+    .upsert({ chat_id: chatId, ...patch, updated_at: new Date().toISOString() });
 }
 
 async function bumpScore(chatId: number, username: string | null, correct: boolean) {
   const db = admin();
-  const { data } = await db.from("user_scores").select("total,correct").eq("chat_id", chatId).maybeSingle();
+  const { data } = await db
+    .from("user_scores")
+    .select("total,correct")
+    .eq("chat_id", chatId)
+    .maybeSingle();
   const total = (data?.total ?? 0) + 1;
   const ok = (data?.correct ?? 0) + (correct ? 1 : 0);
-  await db.from("user_scores").upsert({ chat_id: chatId, username, total, correct: ok, updated_at: new Date().toISOString() });
+  await db.from("user_scores").upsert({
+    chat_id: chatId,
+    username,
+    total,
+    correct: ok,
+    updated_at: new Date().toISOString(),
+  });
   return { total, correct: ok };
 }
 
@@ -138,7 +161,12 @@ function quickMenu() {
   };
 }
 
-async function sendQuestion(chatId: number, subject: string | null, topic: string | null, mode: string) {
+async function sendQuestion(
+  chatId: number,
+  subject: string | null,
+  topic: string | null,
+  mode: string,
+) {
   const q = await pickQuestion(subject, topic);
   if (!q) {
     await tg("sendMessage", { chat_id: chatId, text: "No questions found." });
@@ -169,7 +197,9 @@ async function sendQuestion(chatId: number, subject: string | null, topic: strin
       chat_id: chatId,
       text,
       parse_mode: "Markdown",
-      reply_markup: { inline_keyboard: [LETTERS.map((L) => ({ text: L, callback_data: `ans:${q.id}:${L}` }))] },
+      reply_markup: {
+        inline_keyboard: [LETTERS.map((L) => ({ text: L, callback_data: `ans:${q.id}:${L}` }))],
+      },
     });
   }
 }
@@ -187,8 +217,15 @@ async function sendTopicsMenu(chatId: number, subject?: string) {
       topics.push(r);
     }
   }
-  topics.sort((a, b) => (a.subject === b.subject ? a.topic.localeCompare(b.topic) : a.subject.localeCompare(b.subject)));
-  const rows = topics.map((t) => [{ text: `${t.subject === "ICTSM" ? "📚" : "💼"} ${t.topic}`, callback_data: `topic:${t.subject}:${t.topic}` }]);
+  topics.sort((a, b) =>
+    a.subject === b.subject ? a.topic.localeCompare(b.topic) : a.subject.localeCompare(b.subject),
+  );
+  const rows = topics.map((t) => [
+    {
+      text: `${t.subject === "ICTSM" ? "📚" : "💼"} ${t.topic}`,
+      callback_data: `topic:${t.subject}:${t.topic}`,
+    },
+  ]);
   await tg("sendMessage", {
     chat_id: chatId,
     text: subject ? `🗂 *${subject} topics* — pick one:` : "🗂 *Pick a topic:*",
@@ -198,7 +235,11 @@ async function sendTopicsMenu(chatId: number, subject?: string) {
 }
 
 async function sendScore(chatId: number) {
-  const { data } = await admin().from("user_scores").select("total,correct").eq("chat_id", chatId).maybeSingle();
+  const { data } = await admin()
+    .from("user_scores")
+    .select("total,correct")
+    .eq("chat_id", chatId)
+    .maybeSingle();
   const total = data?.total ?? 0;
   const correct = data?.correct ?? 0;
   const pct = total ? Math.round((correct / total) * 100) : 0;
@@ -214,7 +255,14 @@ async function sendModeMenu(chatId: number) {
   await tg("sendMessage", {
     chat_id: chatId,
     text: "Choose your quiz mode:",
-    reply_markup: { inline_keyboard: [[{ text: "📊 Quiz Polls", callback_data: "mode:poll" }, { text: "🔘 Inline Buttons", callback_data: "mode:button" }]] },
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "📊 Quiz Polls", callback_data: "mode:poll" },
+          { text: "🔘 Inline Buttons", callback_data: "mode:button" },
+        ],
+      ],
+    },
   });
 }
 
@@ -241,7 +289,12 @@ async function handleCommand(chatId: number, username: string | null, text: stri
   switch (cmd) {
     case "/start":
     case "/help":
-      await tg("sendMessage", { chat_id: chatId, text: welcomeText(), parse_mode: "Markdown", reply_markup: quickMenu() });
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text: welcomeText(),
+        parse_mode: "Markdown",
+        reply_markup: quickMenu(),
+      });
       return;
     case "/mode":
       await sendModeMenu(chatId);
@@ -262,11 +315,21 @@ async function handleCommand(chatId: number, username: string | null, text: stri
       await sendScore(chatId);
       return;
     case "/reset":
-      await admin().from("user_scores").upsert({ chat_id: chatId, username, total: 0, correct: 0, updated_at: new Date().toISOString() });
+      await admin().from("user_scores").upsert({
+        chat_id: chatId,
+        username,
+        total: 0,
+        correct: 0,
+        updated_at: new Date().toISOString(),
+      });
       await tg("sendMessage", { chat_id: chatId, text: "✅ Score reset." });
       return;
     default:
-      await tg("sendMessage", { chat_id: chatId, text: "Unknown command. Send /help to see options.", reply_markup: quickMenu() });
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text: "Unknown command. Send /help to see options.",
+        reply_markup: quickMenu(),
+      });
   }
 }
 
@@ -285,7 +348,12 @@ Deno.serve(async (request) => {
     const msg = update.message ?? update.edited_message;
     const cb = update.callback_query;
     const chatId: number | undefined = msg?.chat?.id ?? cb?.message?.chat?.id;
-    const username: string | null = msg?.from?.username ?? msg?.from?.first_name ?? cb?.from?.username ?? cb?.from?.first_name ?? null;
+    const username: string | null =
+      msg?.from?.username ??
+      msg?.from?.first_name ??
+      cb?.from?.username ??
+      cb?.from?.first_name ??
+      null;
     if (!chatId) return json({ ok: true });
 
     const allowed = await isAllowed(chatId);
@@ -295,13 +363,26 @@ Deno.serve(async (request) => {
         if (parts[0].toLowerCase().startsWith("/start") && parts[1]) {
           const ok = await tryRedeemInvite(chatId, username, parts[1]);
           if (ok) {
-            await tg("sendMessage", { chat_id: chatId, text: "🎉 Access granted!\n\n" + welcomeText(), parse_mode: "Markdown" });
+            await tg("sendMessage", {
+              chat_id: chatId,
+              text: "🎉 Access granted!\n\n" + welcomeText(),
+              parse_mode: "Markdown",
+            });
             return json({ ok: true });
           }
         }
       }
-      if (cb?.id) await tg("answerCallbackQuery", { callback_query_id: cb.id, text: "Access required", show_alert: true });
-      await tg("sendMessage", { chat_id: chatId, text: "🔒 *This bot is private.*\n\nOpen the invite link your friend shared to unlock it.", parse_mode: "Markdown" });
+      if (cb?.id)
+        await tg("answerCallbackQuery", {
+          callback_query_id: cb.id,
+          text: "Access required",
+          show_alert: true,
+        });
+      await tg("sendMessage", {
+        chat_id: chatId,
+        text: "🔒 *This bot is private.*\n\nOpen the invite link your friend shared to unlock it.",
+        parse_mode: "Markdown",
+      });
       return json({ ok: true });
     }
 
@@ -316,7 +397,12 @@ Deno.serve(async (request) => {
         const newMode = data.split(":")[1];
         await setState(chatId, { mode: newMode });
         await tg("answerCallbackQuery", { callback_query_id: cb.id, text: `Mode: ${newMode}` });
-        await tg("sendMessage", { chat_id: chatId, text: `✅ Mode set to *${newMode === "poll" ? "Quiz Polls" : "Inline Buttons"}*. Try /random.`, parse_mode: "Markdown", reply_markup: quickMenu() });
+        await tg("sendMessage", {
+          chat_id: chatId,
+          text: `✅ Mode set to *${newMode === "poll" ? "Quiz Polls" : "Inline Buttons"}*. Try /random.`,
+          parse_mode: "Markdown",
+          reply_markup: quickMenu(),
+        });
       } else if (data === "menu:topics") {
         await tg("answerCallbackQuery", { callback_query_id: cb.id });
         await sendTopicsMenu(chatId);
@@ -349,10 +435,22 @@ Deno.serve(async (request) => {
         if (q) {
           const correct = letter.toUpperCase() === q.answer.toUpperCase();
           const opts = [q.option_a, q.option_b, q.option_c, q.option_d];
-          const correctText = opts[LETTERS.indexOf(q.answer.toUpperCase() as (typeof LETTERS)[number])];
+          const correctText =
+            opts[LETTERS.indexOf(q.answer.toUpperCase() as (typeof LETTERS)[number])];
           const score = await bumpScore(chatId, username, correct);
-          await tg("answerCallbackQuery", { callback_query_id: cb.id, text: correct ? "✅ Correct!" : "❌ Wrong", show_alert: false });
-          await tg("sendMessage", { chat_id: chatId, text: (correct ? "✅ *Correct!*" : `❌ *Wrong.* Answer: *${q.answer}* — ${correctText}`) + `\n\nScore: ${score.correct}/${score.total}`, parse_mode: "Markdown", reply_markup: quickMenu() });
+          await tg("answerCallbackQuery", {
+            callback_query_id: cb.id,
+            text: correct ? "✅ Correct!" : "❌ Wrong",
+            show_alert: false,
+          });
+          await tg("sendMessage", {
+            chat_id: chatId,
+            text:
+              (correct ? "✅ *Correct!*" : `❌ *Wrong.* Answer: *${q.answer}* — ${correctText}`) +
+              `\n\nScore: ${score.correct}/${score.total}`,
+            parse_mode: "Markdown",
+            reply_markup: quickMenu(),
+          });
           const st = await getState(chatId);
           await sendQuestion(chatId, st?.subject ?? null, st?.topic ?? null, st?.mode ?? "button");
         } else {
