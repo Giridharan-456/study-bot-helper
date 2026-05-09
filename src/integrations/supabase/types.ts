@@ -14,7 +14,101 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      questions: {
+        Row: {
+          answer: string
+          created_at: string
+          id: number
+          option_a: string
+          option_b: string
+          option_c: string
+          option_d: string
+          question: string
+          subject: string
+          topic: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string
+          id?: number
+          option_a: string
+          option_b: string
+          option_c: string
+          option_d: string
+          question: string
+          subject: string
+          topic: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          id?: number
+          option_a?: string
+          option_b?: string
+          option_c?: string
+          option_d?: string
+          question?: string
+          subject?: string
+          topic?: string
+        }
+        Relationships: []
+      }
+      user_scores: {
+        Row: {
+          chat_id: number
+          correct: number
+          total: number
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          chat_id: number
+          correct?: number
+          total?: number
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          chat_id?: number
+          correct?: number
+          total?: number
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      user_state: {
+        Row: {
+          chat_id: number
+          current_question_id: number | null
+          mode: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          chat_id: number
+          current_question_id?: number | null
+          mode?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chat_id?: number
+          current_question_id?: number | null
+          mode?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_state_current_question_id_fkey"
+            columns: ["current_question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
