@@ -69,6 +69,7 @@ function Index() {
             <li><code className="rounded bg-muted px-1.5 py-0.5">/ictsm</code> — random ICTSM question</li>
             <li><code className="rounded bg-muted px-1.5 py-0.5">/employability</code> — random Employability question</li>
             <li><code className="rounded bg-muted px-1.5 py-0.5">/random</code> — random from any subject</li>
+            <li><code className="rounded bg-muted px-1.5 py-0.5">/topics</code> — browse all 20 topics</li>
             <li><code className="rounded bg-muted px-1.5 py-0.5">/mode</code> — switch quiz polls ↔ inline buttons</li>
             <li><code className="rounded bg-muted px-1.5 py-0.5">/score</code> — your accuracy</li>
             <li><code className="rounded bg-muted px-1.5 py-0.5">/reset</code> — reset score</li>
