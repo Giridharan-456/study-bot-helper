@@ -826,6 +826,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
         }
 
         const update = await request.json();
+        void ensureCommandsRegistered();
 
         try {
           const msg = update.message ?? update.edited_message;
