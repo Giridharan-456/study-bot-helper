@@ -767,9 +767,7 @@ async function handleCommand(chatId: number, username: string | null, text: stri
       await sendBattleTopicMenu(chatId);
       return;
     case "/join": {
-      // /join may be sent as "🤝 /join CODE" — pull last whitespace token if it's not the cmd
-      const tokens = text.split(/\s+/).filter((t) => !t.startsWith("/") && !/^[^\w/]+$/.test(t));
-      const code = tokens[tokens.length - 1];
+      const code = text.match(/\/join\s+(\S+)/i)?.[1];
       if (!code) {
         await tg("sendMessage", {
           chat_id: chatId,
