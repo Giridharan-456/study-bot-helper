@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      bot_users: {
+        Row: {
+          chat_id: number
+          invite_code: string | null
+          joined_at: string
+          username: string | null
+        }
+        Insert: {
+          chat_id: number
+          invite_code?: string | null
+          joined_at?: string
+          username?: string | null
+        }
+        Update: {
+          chat_id?: number
+          invite_code?: string | null
+          joined_at?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_users_invite_code_fkey"
+            columns: ["invite_code"]
+            isOneToOne: false
+            referencedRelation: "invites"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      invites: {
+        Row: {
+          code: string
+          created_at: string
+          label: string | null
+          uses: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          label?: string | null
+          uses?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          label?: string | null
+          uses?: number
+        }
+        Relationships: []
+      }
       questions: {
         Row: {
           answer: string
