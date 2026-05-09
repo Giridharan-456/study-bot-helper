@@ -1113,6 +1113,11 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                 const opts = [q.option_a, q.option_b, q.option_c, q.option_d];
                 const correctText = opts[LETTERS.indexOf(q.answer.toUpperCase() as (typeof LETTERS)[number])];
                 const score = await bumpScore(chatId, username, correct);
+                if (correct) {
+                  await removeWrongAnswer(chatId, qid);
+                } else {
+                  await addWrongAnswer(chatId, qid);
+                }
                 await tg("answerCallbackQuery", {
                   callback_query_id: cb.id,
                   text: correct ? "✅ Correct!" : "❌ Wrong",
