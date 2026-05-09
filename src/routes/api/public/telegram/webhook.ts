@@ -355,6 +355,8 @@ function welcomeText() {
     "/random — random from any subject\n" +
     "/topics — browse 20 topics\n" +
     "/quiz — start a 10/20/50-question round\n" +
+    "/battle — challenge a friend (1v1)\n" +
+    "/join CODE — join a friend's battle\n" +
     "/leaderboard — top scorers\n" +
     "/mode — switch between quiz polls or buttons\n" +
     "/score — your score\n" +
