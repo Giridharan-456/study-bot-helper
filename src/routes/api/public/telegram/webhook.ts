@@ -899,6 +899,31 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
               await startQuizSession(chatId, n, st?.mode ?? "button");
+            } else if (data.startsWith("bt-topic:")) {
+              const rest = data.slice("bt-topic:".length);
+              const sep = rest.indexOf(":");
+              const subj = rest.slice(0, sep);
+              const topic = rest.slice(sep + 1);
+              await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              await createBattle(
+                chatId,
+                username,
+                subj === "*" ? null : subj,
+                topic === "*" ? null : topic,
+              );
+            } else if (data.startsWith("bt-cancel:")) {
+              const code = data.slice("bt-cancel:".length);
+              const b = await findBattle(code);
+              if (b && b.p1_chat === chatId && b.status === "waiting") {
+                await updateBattle(code, { status: "done" });
+                await tg("answerCallbackQuery", { callback_query_id: cb.id, text: "Cancelled" });
+                await tg("sendMessage", { chat_id: chatId, text: "✖️ Battle cancelled." });
+              } else {
+                await tg("answerCallbackQuery", { callback_query_id: cb.id });
+              }
+            } else if (data.startsWith("bt-ans:")) {
+              const [, code, roundStr, letter] = data.split(":");
+              await handleBattleAnswer(chatId, cb.id, code, roundStr, letter);
             } else if (data === "next:random") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               const st = await getState(chatId);
