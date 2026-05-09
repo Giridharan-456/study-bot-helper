@@ -244,42 +244,27 @@ async function sendQuestion(
   chatId: number,
   subject: string | null,
   topic: string | null,
-  mode: string,
+  _mode?: string,
 ) {
   const q = await pickQuestion(subject, topic);
   if (!q) {
     await tg("sendMessage", { chat_id: chatId, text: "No questions found." });
     return;
   }
-  await setState(chatId, { mode, subject, topic, current_question_id: q.id });
-
-  const correctIdx = LETTERS.indexOf(q.answer.toUpperCase() as (typeof LETTERS)[number]);
+  await setState(chatId, { mode: "button", subject, topic, current_question_id: q.id });
   const options = [q.option_a, q.option_b, q.option_c, q.option_d];
-
-  if (mode === "poll") {
-    // Telegram quiz polls require option text <= 100 chars and question <= 300 chars
-    const safeQ = q.question.length > 290 ? q.question.slice(0, 287) + "..." : q.question;
-    const safeOpts = options.map((o) => (o.length > 95 ? o.slice(0, 92) + "..." : o));
-    await tg("sendPoll", {
-      chat_id: chatId,
-      question: `[${q.subject} • ${q.topic}]\n${safeQ}`,
-      options: safeOpts,
-      type: "quiz",
-      correct_option_id: correctIdx,
-      is_anonymous: false,
-    });
-  } else {
-    await tg("sendMessage", {
-      chat_id: chatId,
-      text: formatQuestionCard(q.subject, q.topic, q.question, options),
-      parse_mode: "HTML",
-      reply_markup: {
-        inline_keyboard: [
-          LETTERS.map((L) => ({ text: L, callback_data: `ans:${q.id}:${L}` })),
-        ],
-      },
-    });
-  }
+  const bookmarked = await isBookmarked(chatId, q.id);
+  await tg("sendMessage", {
+    chat_id: chatId,
+    text: formatQuestionCard(q.subject, q.topic, q.question, options),
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        LETTERS.map((L) => ({ text: L, callback_data: `ans:${q.id}:${L}` })),
+        [{ text: bookmarked ? "🔖 Bookmarked" : "🔖 Bookmark", callback_data: `bm:${q.id}` }],
+      ],
+    },
+  });
 }
 
 async function sendTopicsMenu(chatId: number, subject?: string) {
