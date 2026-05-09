@@ -655,7 +655,7 @@ async function handleBattleAnswer(
     : { p2_answer: letter };
   await updateBattle(code, patch);
 
-  // Edit player's own message — keep buttons removed, show their pick + "waiting"
+  // Edit player's own message — remove buttons, show waiting state in place
   const myMsg = isP1 ? b.p1_message_id : b.p2_message_id;
   if (myMsg) {
     await tg("editMessageReplyMarkup", {
@@ -663,25 +663,6 @@ async function handleBattleAnswer(
       message_id: myMsg,
       reply_markup: { inline_keyboard: [] },
     });
-    await tg("sendMessage", {
-      chat_id: chatId,
-      text: `🔒 You picked <b>${esc(letter)}</b>. Waiting for opponent…`,
-      parse_mode: "HTML",
-    });
-  }
-
-  // Notify opponent that you answered (without revealing the letter)
-  const oppChat = isP1 ? b.p2_chat : b.p1_chat;
-  const myName = (isP1 ? b.p1_username : b.p2_username) ?? "Opponent";
-  if (oppChat) {
-    const oppAnswered = isP1 ? b.p2_answer : b.p1_answer;
-    if (!oppAnswered) {
-      await tg("sendMessage", {
-        chat_id: oppChat,
-        text: `⚡ <b>${esc(myName)}</b> answered. Your turn!`,
-        parse_mode: "HTML",
-      });
-    }
   }
 
   // Reload and check if both answered
@@ -1077,18 +1058,17 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
                     );
                     return;
                   }
-                  await tg("sendMessage", {
-                    chat_id: chatId,
-                    text: `📊 Round: ${sessCorrect} correct • ${remaining} left`,
-                  });
+                  // In an active quiz session, auto-advance to next question.
+                  await sendQuestion(
+                    chatId,
+                    st?.subject ?? null,
+                    st?.topic ?? null,
+                    st?.mode ?? "button",
+                  );
+                  return;
                 }
-                // Auto-send the next question in the same subject/topic context.
-                await sendQuestion(
-                  chatId,
-                  st?.subject ?? null,
-                  st?.topic ?? null,
-                  st?.mode ?? "button",
-                );
+                // Outside a quiz session: stop here. User can tap the menu
+                // (/random, /topics, etc.) to request the next question.
               } else {
                 await tg("answerCallbackQuery", { callback_query_id: cb.id });
               }
