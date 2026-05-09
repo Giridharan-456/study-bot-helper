@@ -395,13 +395,15 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             if (data.startsWith("mode:")) {
               const newMode = data.split(":")[1];
               await setState(chatId, { mode: newMode });
-              await tg("answerCallbackQuery", { callback_query_id: cb.id, text: `Mode: ${newMode}` });
-              await tg("sendMessage", {
-                chat_id: chatId,
-                text: `✅ Mode set to *${newMode === "poll" ? "Quiz Polls" : "Inline Buttons"}*. Try /random.`,
-                parse_mode: "Markdown",
-                reply_markup: quickMenu(),
-              });
+              await Promise.all([
+                tg("answerCallbackQuery", { callback_query_id: cb.id, text: `Mode: ${newMode}` }),
+                tg("sendMessage", {
+                  chat_id: chatId,
+                  text: `✅ Mode set to *${newMode === "poll" ? "Quiz Polls" : "Inline Buttons"}*. Try /random.`,
+                  parse_mode: "Markdown",
+                  reply_markup: quickMenu(),
+                })
+              ]);
             } else if (data === "menu:topics") {
               await tg("answerCallbackQuery", { callback_query_id: cb.id });
               await sendTopicsMenu(chatId);
